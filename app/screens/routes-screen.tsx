@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Plus, Edit, MapPin, Clock, Truck, MoreVertical, Download, Search, Map } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Plus, Edit, MapPin, Clock, Truck, MoreVertical, Download, Search, Map, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,6 +10,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { RouteService, type RouteWithDriver } from "@/lib/services/routes"
+import { DeliveryService } from "@/lib/services/deliveries"
+import { useToast } from "@/hooks/use-toast"
 
 const mockRoutes = [
   {
@@ -88,10 +91,12 @@ interface RoutesScreenProps {
 }
 
 export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
-  const [routes, setRoutes] = useState(mockRoutes)
+  const [routes, setRoutes] = useState<RouteWithDriver[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const { toast } = useToast()
 
   const filteredRoutes = routes.filter((route) => {
     const matchesSearch = route.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -112,9 +117,54 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
     }
   }
 
-  const handleViewMap = (route: typeof mockRoutes[0]) => {
-    const deliveries = mockDeliveries[route.id as keyof typeof mockDeliveries] || []
-    onViewRouteMap(route, deliveries)
+  // Load routes from Supabase
+  useEffect(() => {
+    loadRoutes()
+  }, [])
+
+  const loadRoutes = async () => {
+    try {
+      setLoading(true)
+      const data = await RouteService.getAllRoutes()
+      setRoutes(data)
+    } catch (error) {
+      console.error('Error loading routes:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load routes. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleViewMap = async (route: RouteWithDriver) => {
+    try {
+      const deliveries = await DeliveryService.getDeliveriesByRoute(route.id)
+      
+      // Transform route to expected format
+      const transformedRoute = {
+        id: route.id,
+        name: route.name,
+        distance: route.total_distance ? `${route.total_distance.toFixed(1)} km` : '0 km',
+        duration: route.estimated_duration ? `${Math.floor(route.estimated_duration / 60)}h ${route.estimated_duration % 60}m` : '0h 0m',
+        stops: deliveries.length,
+        status: route.status,
+        driver: route.driver?.name || 'Unassigned',
+        lastUpdated: new Date(route.updated_at).toLocaleString(),
+        efficiency: route.efficiency_score || 0
+      }
+      
+      onViewRouteMap(transformedRoute, deliveries)
+    } catch (error) {
+      console.error('Error loading route deliveries:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load route deliveries. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   return (
@@ -203,75 +253,92 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
       </div>
 
       {/* Routes Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredRoutes.map((route) => (
-          <Card key={route.id} className="bg-white border border-gray-200 hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg text-gray-900">{route.name}</CardTitle>
-                <div className="flex items-center space-x-2">
-                  <Badge className={getStatusColor(route.status)}>{route.status}</Badge>
-                  <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-gray-600">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-center text-sm">
-                    <MapPin className="h-4 w-4 mr-2 text-gray-500" />
-                    <span className="text-gray-900">{route.distance}</span>
-                  </div>
-                  <div className="flex items-center text-sm">
-                    <Clock className="h-4 w-4 mr-2 text-gray-500" />
-                    <span className="text-gray-900">{route.duration}</span>
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <span className="ml-2 text-gray-600">Loading routes...</span>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredRoutes.map((route) => (
+            <Card key={route.id} className="bg-white border border-gray-200 hover:shadow-md transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg text-gray-900">{route.name}</CardTitle>
+                  <div className="flex items-center space-x-2">
+                    <Badge className={getStatusColor(route.status)}>{route.status}</Badge>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-gray-600">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center">
-                    <Truck className="h-4 w-4 mr-2 text-gray-500" />
-                    <span className="text-gray-900">{route.stops} stops</span>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center text-sm">
+                      <MapPin className="h-4 w-4 mr-2 text-gray-500" />
+                      <span className="text-gray-900">
+                        {route.total_distance ? `${route.total_distance.toFixed(1)} km` : '0 km'}
+                      </span>
+                    </div>
+                    <div className="flex items-center text-sm">
+                      <Clock className="h-4 w-4 mr-2 text-gray-500" />
+                      <span className="text-gray-900">
+                        {route.estimated_duration 
+                          ? `${Math.floor(route.estimated_duration / 60)}h ${route.estimated_duration % 60}m` 
+                          : '0h 0m'}
+                      </span>
+                    </div>
                   </div>
-                  {route.efficiency > 0 && (
-                    <span className="text-green-600 font-medium">{route.efficiency}% efficient</span>
-                  )}
-                </div>
-                <div className="pt-2 border-t border-gray-100">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Driver:</span>
-                    <span className="text-gray-900 font-medium">{route.driver}</span>
+                    <div className="flex items-center">
+                      <Truck className="h-4 w-4 mr-2 text-gray-500" />
+                      <span className="text-gray-900">Loading stops...</span>
+                    </div>
+                    {route.efficiency_score && route.efficiency_score > 0 && (
+                      <span className="text-green-600 font-medium">{route.efficiency_score}% efficient</span>
+                    )}
                   </div>
-                  <div className="flex items-center justify-between text-sm mt-1">
-                    <span className="text-gray-500">Updated:</span>
-                    <span className="text-gray-600">{route.lastUpdated}</span>
+                  <div className="pt-2 border-t border-gray-100">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-500">Driver:</span>
+                      <span className="text-gray-900 font-medium">
+                        {route.driver?.name || 'Unassigned'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm mt-1">
+                      <span className="text-gray-500">Updated:</span>
+                      <span className="text-gray-600">
+                        {new Date(route.updated_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex space-x-2 pt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
+                      onClick={() => handleViewMap(route)}
+                    >
+                      <Map className="h-4 w-4 mr-2" />
+                      View Map
+                    </Button>
                   </div>
                 </div>
-                <div className="flex space-x-2 pt-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
-                  >
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
-                    onClick={() => handleViewMap(route)}
-                  >
-                    <Map className="h-4 w-4 mr-2" />
-                    View Map
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Empty State */}
       {filteredRoutes.length === 0 && (

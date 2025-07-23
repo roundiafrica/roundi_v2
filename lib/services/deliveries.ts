@@ -1,0 +1,249 @@
+import { supabase } from '@/lib/supabase'
+import type { Database } from '@/lib/supabase'
+
+type Delivery = Database['public']['Tables']['deliveries']['Row']
+type DeliveryInsert = Database['public']['Tables']['deliveries']['Insert']
+type DeliveryUpdate = Database['public']['Tables']['deliveries']['Update']
+
+// Delivery type for the frontend with coordinates as array
+export interface DeliveryForMap {
+  id: number
+  route_id: number | null
+  farmerName: string
+  location: string
+  coordinates: [number, number] // [lat, lng]
+  produce: string
+  estimatedValue?: string | null
+  weight?: string | null
+  phone: string
+  dropTime: string
+  status: 'pending' | 'in-progress' | 'completed' | 'failed'
+  order_index?: number | null
+}
+
+export class DeliveryService {
+  static async getAllDeliveries(): Promise<Delivery[]> {
+    const { data, error } = await supabase
+      .from('deliveries')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching deliveries:', error)
+      throw error
+    }
+
+    return data || []
+  }
+
+  static async getDeliveryById(id: number): Promise<Delivery | null> {
+    const { data, error } = await supabase
+      .from('deliveries')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error fetching delivery:', error)
+      throw error
+    }
+
+    return data
+  }
+
+  static async getDeliveriesByRoute(routeId: number): Promise<DeliveryForMap[]> {
+    const { data, error } = await supabase
+      .from('deliveries')
+      .select('*')
+      .eq('route_id', routeId)
+      .order('order_index')
+
+    if (error) {
+      console.error('Error fetching deliveries by route:', error)
+      throw error
+    }
+
+    // Transform the data to match frontend expectations
+    return (data || []).map(this.transformDeliveryForMap)
+  }
+
+  static async getDeliveriesByStatus(status: 'pending' | 'in-progress' | 'completed' | 'failed'): Promise<Delivery[]> {
+    const { data, error } = await supabase
+      .from('deliveries')
+      .select('*')
+      .eq('status', status)
+      .order('drop_time')
+
+    if (error) {
+      console.error('Error fetching deliveries by status:', error)
+      throw error
+    }
+
+    return data || []
+  }
+
+  static async createDelivery(delivery: DeliveryInsert): Promise<Delivery> {
+    const { data, error } = await supabase
+      .from('deliveries')
+      .insert([delivery])
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error creating delivery:', error)
+      throw error
+    }
+
+    return data
+  }
+
+  static async updateDelivery(id: number, updates: DeliveryUpdate): Promise<Delivery> {
+    const { data, error } = await supabase
+      .from('deliveries')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating delivery:', error)
+      throw error
+    }
+
+    return data
+  }
+
+  static async updateDeliveryStatus(id: number, status: 'pending' | 'in-progress' | 'completed' | 'failed'): Promise<Delivery> {
+    return this.updateDelivery(id, { status })
+  }
+
+  static async updateDeliveryOrder(deliveries: Array<{ id: number; order_index: number }>): Promise<void> {
+    const updates = deliveries.map(delivery => 
+      supabase
+        .from('deliveries')
+        .update({ order_index: delivery.order_index })
+        .eq('id', delivery.id)
+    )
+
+    const results = await Promise.all(updates)
+    
+    for (const result of results) {
+      if (result.error) {
+        console.error('Error updating delivery order:', result.error)
+        throw result.error
+      }
+    }
+  }
+
+  static async deleteDelivery(id: number): Promise<void> {
+    const { error } = await supabase
+      .from('deliveries')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error deleting delivery:', error)
+      throw error
+    }
+  }
+
+  static async getDeliveryStats() {
+    const { data, error } = await supabase
+      .from('deliveries')
+      .select('status, estimated_value')
+
+    if (error) {
+      console.error('Error fetching delivery stats:', error)
+      throw error
+    }
+
+    const stats = {
+      total: data?.length || 0,
+      pending: data?.filter(d => d.status === 'pending').length || 0,
+      inProgress: data?.filter(d => d.status === 'in-progress').length || 0,
+      completed: data?.filter(d => d.status === 'completed').length || 0,
+      failed: data?.filter(d => d.status === 'failed').length || 0,
+      totalValue: data?.reduce((sum, d) => {
+        const value = d.estimated_value?.replace(/[^0-9]/g, '') || '0'
+        return sum + parseInt(value)
+      }, 0) || 0
+    }
+
+    return stats
+  }
+
+  // Transform database delivery to frontend format
+  static transformDeliveryForMap(delivery: Delivery): DeliveryForMap {
+    // Parse coordinates from PostGIS POINT format to array
+    let coordinates: [number, number] = [-1.2921, 36.8219] // Default to Nairobi
+    
+    if (Array.isArray(delivery.coordinates) && delivery.coordinates.length >= 2) {
+      coordinates = [delivery.coordinates[0], delivery.coordinates[1]]
+    }
+
+    return {
+      id: delivery.id,
+      route_id: delivery.route_id,
+      farmerName: delivery.farmer_name,
+      location: delivery.location,
+      coordinates,
+      produce: delivery.produce,
+      estimatedValue: delivery.estimated_value,
+      weight: delivery.weight,
+      phone: delivery.phone,
+      dropTime: delivery.drop_time,
+      status: delivery.status,
+      order_index: delivery.order_index
+    }
+  }
+
+  // Transform frontend delivery to database format
+  static transformDeliveryForDB(delivery: DeliveryForMap): DeliveryInsert {
+    return {
+      route_id: delivery.route_id,
+      farmer_name: delivery.farmerName,
+      location: delivery.location,
+      coordinates: delivery.coordinates,
+      produce: delivery.produce,
+      estimated_value: delivery.estimatedValue,
+      weight: delivery.weight,
+      phone: delivery.phone,
+      drop_time: delivery.dropTime,
+      status: delivery.status,
+      order_index: delivery.order_index
+    }
+  }
+
+  static async getTodaysDeliveries(): Promise<Delivery[]> {
+    const today = new Date().toISOString().split('T')[0]
+    
+    const { data, error } = await supabase
+      .from('deliveries')
+      .select('*')
+      .gte('created_at', `${today}T00:00:00`)
+      .lt('created_at', `${today}T23:59:59`)
+      .order('drop_time')
+
+    if (error) {
+      console.error('Error fetching today\'s deliveries:', error)
+      throw error
+    }
+
+    return data || []
+  }
+
+  static async searchDeliveries(query: string): Promise<Delivery[]> {
+    const { data, error } = await supabase
+      .from('deliveries')
+      .select('*')
+      .or(`farmer_name.ilike.%${query}%, location.ilike.%${query}%, produce.ilike.%${query}%`)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error searching deliveries:', error)
+      throw error
+    }
+
+    return data || []
+  }
+} 
