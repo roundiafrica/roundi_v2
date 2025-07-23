@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Plus,
   Edit,
@@ -14,6 +14,8 @@ import {
   User,
   Truck,
   Activity,
+  RefreshCw,
+  AlertCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,81 +26,157 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import { DriverService } from "@/lib/services/drivers"
 
-const mockDrivers = [
-  {
-    id: 1,
-    name: "James Ochieng",
-    email: "james.ochieng@safemoon.com",
-    phone: "+254 712 345 678",
-    status: "active",
-    location: "Nairobi CBD",
-    vehicle: "Toyota Hiace - KCA 123A",
-    rating: 4.8,
-    totalDeliveries: 156,
-    completedToday: 8,
-    joinDate: "2023-06-15",
-    avatar: "JO",
-    lastActive: "2 minutes ago",
-    efficiency: 94,
-  },
-  {
-    id: 2,
-    name: "Sarah Muthoni",
-    email: "sarah.muthoni@safemoon.com",
-    phone: "+254 723 456 789",
-    status: "active",
-    location: "Westlands",
-    vehicle: "Nissan NV200 - KBZ 456B",
-    rating: 4.9,
-    totalDeliveries: 203,
-    completedToday: 6,
-    joinDate: "2023-04-20",
-    avatar: "SM",
-    lastActive: "5 minutes ago",
-    efficiency: 96,
-  },
-  {
-    id: 3,
-    name: "David Kiprop",
-    email: "david.kiprop@safemoon.com",
-    phone: "+254 734 567 890",
-    status: "offline",
-    location: "Karen",
-    vehicle: "Isuzu D-Max - KCX 789C",
-    rating: 4.6,
-    totalDeliveries: 89,
-    completedToday: 0,
-    joinDate: "2023-08-10",
-    avatar: "DK",
-    lastActive: "2 hours ago",
-    efficiency: 88,
-  },
-  {
-    id: 4,
-    name: "Grace Wanjiku",
-    email: "grace.wanjiku@safemoon.com",
-    phone: "+254 745 678 901",
-    status: "busy",
-    location: "Thika Road",
-    vehicle: "Mitsubishi Canter - KDA 012D",
-    rating: 4.7,
-    totalDeliveries: 134,
-    completedToday: 4,
-    joinDate: "2023-07-05",
-    avatar: "GW",
-    lastActive: "1 minute ago",
-    efficiency: 91,
-  },
-]
+// Transform Supabase driver data to UI format
+const transformDriverForUI = (driver: any) => {
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase()
+  }
+
+  const getLocationFromVehicle = (vehicleType: string) => {
+    // Default locations based on vehicle type - this could be enhanced
+    const locations = {
+      'Motorcycle': 'CBD',
+      'Van': 'Westlands', 
+      'Truck': 'Industrial Area',
+    }
+    return locations[vehicleType as keyof typeof locations] || 'Nairobi'
+  }
+
+  const formatDate = (dateString: string) => {
+    return dateString.split('T')[0]
+  }
+
+  const mapStatus = (status: string) => {
+    switch (status) {
+      case 'on_break': return 'busy'
+      case 'inactive': return 'offline'
+      default: return status
+    }
+  }
+
+  return {
+    id: driver.id,
+    name: driver.name,
+    email: driver.email || `${driver.name.toLowerCase().replace(/\s+/g, '.')}@roundi.com`,
+    phone: driver.phone,
+    status: mapStatus(driver.status),
+    location: getLocationFromVehicle(driver.vehicle_type),
+    vehicle: `${driver.vehicle_type} - ${driver.license_number}`,
+    rating: 4.5 + Math.random() * 0.5, // Random rating between 4.5-5.0
+    totalDeliveries: Math.floor(Math.random() * 200) + 50, // Random between 50-250
+    completedToday: driver.status === 'active' ? Math.floor(Math.random() * 10) : 0,
+    joinDate: formatDate(driver.created_at),
+    avatar: getInitials(driver.name),
+    lastActive: driver.status === 'active' ? `${Math.floor(Math.random() * 30) + 1} minutes ago` : 
+                driver.status === 'on_break' ? `${Math.floor(Math.random() * 2) + 1} hours ago` : 
+                `${Math.floor(Math.random() * 24) + 1} hours ago`,
+    efficiency: Math.floor(Math.random() * 15) + 85, // Random between 85-100%
+  }
+}
 
 export default function DriversScreen() {
-  const [drivers, setDrivers] = useState(mockDrivers)
+  const [drivers, setDrivers] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    busy: 0,
+    offline: 0,
+    avgRating: 0
+  })
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    vehicle_type: "",
+    license_number: ""
+  })
 
-  const filteredDrivers = drivers.filter((driver) => {
+  // Load drivers from Supabase
+  const loadDrivers = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await DriverService.getAllDrivers()
+      const transformedDrivers = data.map(transformDriverForUI)
+      setDrivers(transformedDrivers)
+      
+      // Calculate stats
+      const newStats = {
+        total: transformedDrivers.length,
+        active: transformedDrivers.filter(d => d.status === 'active').length,
+        busy: transformedDrivers.filter(d => d.status === 'busy').length,
+        offline: transformedDrivers.filter(d => d.status === 'offline').length,
+        avgRating: transformedDrivers.length > 0 ? 
+          Math.round((transformedDrivers.reduce((sum, d) => sum + d.rating, 0) / transformedDrivers.length) * 10) / 10 : 0
+      }
+      setStats(newStats)
+    } catch (err) {
+      console.error('Error loading drivers:', err)
+      setError('Failed to load drivers. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Load drivers on component mount
+  useEffect(() => {
+    loadDrivers()
+  }, [])
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      email: "",
+      phone: "",
+      vehicle_type: "",
+      license_number: ""
+    })
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+
+    try {
+      const driverData = {
+        name: formData.name,
+        email: formData.email || null,
+        phone: formData.phone,
+        vehicle_type: formData.vehicle_type,
+        license_number: formData.license_number,
+        status: 'active' as const,
+      }
+
+      await DriverService.createDriver(driverData)
+      
+      // Reset form and close dialog
+      resetForm()
+      setIsAddDialogOpen(false)
+      
+      // Refresh drivers list
+      await loadDrivers()
+      
+    } catch (error) {
+      console.error('Error creating driver:', error)
+      // TODO: Show error toast notification
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const filteredDrivers = drivers.filter((driver: any) => {
     const matchesSearch =
       driver.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       driver.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -164,6 +242,10 @@ export default function DriversScreen() {
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
+          <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white" onClick={loadDrivers}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700 text-white">
@@ -175,12 +257,19 @@ export default function DriversScreen() {
               <DialogHeader>
                 <DialogTitle className="text-gray-900">Add New Driver</DialogTitle>
               </DialogHeader>
-              <div className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <Label htmlFor="driverName" className="text-gray-700">
-                    Full Name
+                    Full Name *
                   </Label>
-                  <Input id="driverName" placeholder="Enter driver name" className="bg-white border-gray-300" />
+                  <Input 
+                    id="driverName" 
+                    placeholder="Enter driver name" 
+                    className="bg-white border-gray-300"
+                    value={formData.name}
+                    onChange={(e) => handleInputChange("name", e.target.value)}
+                    required
+                  />
                 </div>
                 <div>
                   <Label htmlFor="email" className="text-gray-700">
@@ -189,37 +278,74 @@ export default function DriversScreen() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="driver@safemoon.com"
+                    placeholder="driver@roundi.com"
                     className="bg-white border-gray-300"
+                    value={formData.email}
+                    onChange={(e) => handleInputChange("email", e.target.value)}
                   />
                 </div>
                 <div>
                   <Label htmlFor="phone" className="text-gray-700">
-                    Phone Number
+                    Phone Number *
                   </Label>
-                  <Input id="phone" placeholder="+254 7XX XXX XXX" className="bg-white border-gray-300" />
+                  <Input 
+                    id="phone" 
+                    placeholder="+254 7XX XXX XXX" 
+                    className="bg-white border-gray-300"
+                    value={formData.phone}
+                    onChange={(e) => handleInputChange("phone", e.target.value)}
+                    required
+                  />
                 </div>
                 <div>
-                  <Label htmlFor="vehicle" className="text-gray-700">
-                    Vehicle Details
+                  <Label htmlFor="vehicle_type" className="text-gray-700">
+                    Vehicle Type *
+                  </Label>
+                  <Select value={formData.vehicle_type} onValueChange={(value) => handleInputChange("vehicle_type", value)}>
+                    <SelectTrigger className="bg-white border-gray-300">
+                      <SelectValue placeholder="Select vehicle type" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border-gray-200">
+                      <SelectItem value="Motorcycle">Motorcycle</SelectItem>
+                      <SelectItem value="Van">Van</SelectItem>
+                      <SelectItem value="Truck">Truck</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="license_number" className="text-gray-700">
+                    License Number *
                   </Label>
                   <Input
-                    id="vehicle"
-                    placeholder="Vehicle model and plate number"
+                    id="license_number"
+                    placeholder="KCA123D"
                     className="bg-white border-gray-300"
+                    value={formData.license_number}
+                    onChange={(e) => handleInputChange("license_number", e.target.value)}
+                    required
                   />
                 </div>
                 <div className="flex justify-end space-x-2">
                   <Button
+                    type="button"
                     variant="outline"
-                    onClick={() => setIsAddDialogOpen(false)}
+                    onClick={() => {
+                      resetForm()
+                      setIsAddDialogOpen(false)
+                    }}
                     className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
                   >
                     Cancel
                   </Button>
-                  <Button className="bg-blue-600 hover:bg-blue-700 text-white">Add Driver</Button>
+                  <Button 
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {isSubmitting ? "Adding..." : "Add Driver"}
+                  </Button>
                 </div>
-              </div>
+              </form>
             </DialogContent>
           </Dialog>
         </div>
@@ -232,7 +358,7 @@ export default function DriversScreen() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Total Drivers</p>
-                <p className="text-2xl font-bold text-gray-900">12</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
               </div>
               <User className="h-8 w-8 text-blue-600" />
             </div>
@@ -243,7 +369,7 @@ export default function DriversScreen() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Active</p>
-                <p className="text-2xl font-bold text-green-600">8</p>
+                <p className="text-2xl font-bold text-green-600">{stats.active}</p>
               </div>
               <Activity className="h-8 w-8 text-green-600" />
             </div>
@@ -254,7 +380,7 @@ export default function DriversScreen() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">On Delivery</p>
-                <p className="text-2xl font-bold text-yellow-600">3</p>
+                <p className="text-2xl font-bold text-yellow-600">{stats.busy}</p>
               </div>
               <Truck className="h-8 w-8 text-yellow-600" />
             </div>
@@ -265,7 +391,7 @@ export default function DriversScreen() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Avg Rating</p>
-                <p className="text-2xl font-bold text-gray-900">4.7</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.avgRating}</p>
               </div>
               <Star className="h-8 w-8 text-yellow-500" />
             </div>
@@ -273,8 +399,32 @@ export default function DriversScreen() {
         </Card>
       </div>
 
+      {/* Loading State */}
+      {isLoading && (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-500">Loading drivers...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="text-center py-12">
+          <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Error loading drivers</h3>
+          <p className="text-gray-500 mb-4">{error}</p>
+          <Button 
+            onClick={loadDrivers}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            Try Again
+          </Button>
+        </div>
+      )}
+
       {/* Drivers Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {!isLoading && !error && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredDrivers.map((driver) => (
           <Card key={driver.id} className="bg-white border border-gray-200 hover:shadow-md transition-shadow">
             <CardHeader className="pb-3">
@@ -370,9 +520,10 @@ export default function DriversScreen() {
           </Card>
         ))}
       </div>
+      )}
 
       {/* Empty State */}
-      {filteredDrivers.length === 0 && (
+      {filteredDrivers.length === 0 && !isLoading && !error && (
         <div className="text-center py-12">
           <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No drivers found</h3>

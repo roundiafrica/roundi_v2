@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Package,
   MapPin,
@@ -16,6 +16,8 @@ import {
   CheckCircle,
   AlertCircle,
   XCircle,
+  Plus,
+  RefreshCw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,75 +25,168 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { DeliveryService } from "@/lib/services/deliveries"
 
-const mockDeliveries = [
-  {
-    id: "DEL-001",
-    recipient: "John Kamau",
-    address: "Kiambu Road, Nairobi",
-    phone: "+254 712 345 678",
-    status: "delivered",
-    driver: "James Ochieng",
-    driverAvatar: "JO",
-    scheduledTime: "09:30 AM",
-    deliveredTime: "09:45 AM",
-    items: ["Tomatoes (5kg)", "Carrots (3kg)"],
-    value: "KSh 2,500",
-    priority: "high",
-    date: "2024-01-15",
-  },
-  {
-    id: "DEL-002",
-    recipient: "Mary Wanjiku",
-    address: "Thika Road, Thika",
-    phone: "+254 723 456 789",
-    status: "in-transit",
-    driver: "Sarah Muthoni",
-    driverAvatar: "SM",
-    scheduledTime: "11:00 AM",
-    deliveredTime: null,
-    items: ["Spinach (2kg)", "Kale (4kg)"],
-    value: "KSh 1,800",
-    priority: "medium",
-    date: "2024-01-15",
-  },
-  {
-    id: "DEL-003",
-    recipient: "Peter Mwangi",
-    address: "Ruiru Town, Kiambu",
-    phone: "+254 734 567 890",
-    status: "pending",
-    driver: "Unassigned",
+// Transform Supabase delivery data to UI format
+const transformDeliveryForUI = (delivery: any) => {
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase()
+  }
+
+  const formatTime = (timeString: string) => {
+    const [hours, minutes] = timeString.split(':')
+    const hour24 = parseInt(hours)
+    const hour12 = hour24 > 12 ? hour24 - 12 : hour24 === 0 ? 12 : hour24
+    const ampm = hour24 >= 12 ? 'PM' : 'AM'
+    return `${hour12}:${minutes} ${ampm}`
+  }
+
+  const formatDate = (dateString: string) => {
+    return dateString.split('T')[0]
+  }
+
+  const mapStatus = (status: string) => {
+    switch (status) {
+      case 'completed': return 'delivered'
+      case 'in-progress': return 'in-transit'
+      default: return status
+    }
+  }
+
+  return {
+    id: `DEL-${delivery.id.toString().padStart(3, '0')}`,
+    recipient: delivery.farmer_name,
+    address: delivery.location,
+    phone: delivery.phone,
+    status: mapStatus(delivery.status),
+    driver: "Unassigned", // TODO: Add driver assignment logic
     driverAvatar: "UN",
-    scheduledTime: "02:15 PM",
-    deliveredTime: null,
-    items: ["Potatoes (8kg)", "Onions (5kg)"],
-    value: "KSh 3,200",
-    priority: "low",
-    date: "2024-01-15",
-  },
-  {
-    id: "DEL-004",
-    recipient: "Grace Nyambura",
-    address: "Kikuyu Town, Kiambu",
-    phone: "+254 745 678 901",
-    status: "failed",
-    driver: "David Kiprop",
-    driverAvatar: "DK",
-    scheduledTime: "04:30 PM",
-    deliveredTime: null,
-    items: ["Beans (6kg)", "Maize (10kg)"],
-    value: "KSh 2,100",
-    priority: "high",
-    date: "2024-01-14",
-  },
-]
+    scheduledTime: formatTime(delivery.drop_time),
+    deliveredTime: delivery.status === 'completed' ? formatTime(delivery.drop_time) : null,
+    items: [delivery.produce + (delivery.weight ? ` (${delivery.weight})` : '')],
+    value: delivery.estimated_value || 'Not specified',
+    priority: "medium", // TODO: Add priority logic
+    date: formatDate(delivery.created_at),
+  }
+}
 
 export default function DeliveriesScreen() {
-  const [deliveries, setDeliveries] = useState(mockDeliveries)
+  const [deliveries, setDeliveries] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState("all")
   const [filterDate, setFilterDate] = useState("all")
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [stats, setStats] = useState({
+    total: 0,
+    delivered: 0,
+    inTransit: 0,
+    failed: 0
+  })
+  const [formData, setFormData] = useState({
+    farmer_name: "",
+    location: "",
+    latitude: "",
+    longitude: "",
+    produce: "",
+    estimated_value: "",
+    weight: "",
+    phone: "",
+    drop_time: "",
+  })
+
+  // Load deliveries from Supabase
+  const loadDeliveries = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await DeliveryService.getAllDeliveries()
+      const transformedDeliveries = data.map(transformDeliveryForUI)
+      setDeliveries(transformedDeliveries)
+      
+      // Calculate stats
+      const newStats = {
+        total: transformedDeliveries.length,
+        delivered: transformedDeliveries.filter(d => d.status === 'delivered').length,
+        inTransit: transformedDeliveries.filter(d => d.status === 'in-transit').length,
+        failed: transformedDeliveries.filter(d => d.status === 'failed').length,
+      }
+      setStats(newStats)
+    } catch (err) {
+      console.error('Error loading deliveries:', err)
+      setError('Failed to load deliveries. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Load deliveries on component mount
+  useEffect(() => {
+    loadDeliveries()
+  }, [])
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const resetForm = () => {
+    setFormData({
+      farmer_name: "",
+      location: "",
+      latitude: "",
+      longitude: "",
+      produce: "",
+      estimated_value: "",
+      weight: "",
+      phone: "",
+      drop_time: "",
+    })
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+
+    try {
+      const deliveryData = {
+        farmer_name: formData.farmer_name,
+        location: formData.location,
+        coordinates: [parseFloat(formData.latitude), parseFloat(formData.longitude)],
+        produce: formData.produce,
+        estimated_value: formData.estimated_value || null,
+        weight: formData.weight || null,
+        phone: formData.phone,
+        drop_time: formData.drop_time,
+        status: 'pending' as const,
+      }
+
+      await DeliveryService.createDelivery(deliveryData)
+      
+      // Reset form and close dialog
+      resetForm()
+      setIsAddDialogOpen(false)
+      
+      // Refresh deliveries list
+      await loadDeliveries()
+      
+    } catch (error) {
+      console.error('Error creating delivery:', error)
+      // TODO: Show error toast notification
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   const filteredDeliveries = deliveries.filter((delivery) => {
     const matchesSearch =
@@ -184,6 +279,179 @@ export default function DeliveriesScreen() {
           </Select>
         </div>
         <div className="flex items-center space-x-2">
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Plus className="h-4 w-4 mr-2" />
+                Add New Delivery
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl bg-white">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-semibold text-gray-900">Add New Delivery</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="farmer_name" className="text-sm font-medium text-gray-700">
+                      Farmer Name *
+                    </Label>
+                    <Input
+                      id="farmer_name"
+                      type="text"
+                      required
+                      value={formData.farmer_name}
+                      onChange={(e) => handleInputChange("farmer_name", e.target.value)}
+                      placeholder="Enter farmer name"
+                      className="mt-1 bg-white border-gray-300"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="phone" className="text-sm font-medium text-gray-700">
+                      Phone Number *
+                    </Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      required
+                      value={formData.phone}
+                      onChange={(e) => handleInputChange("phone", e.target.value)}
+                      placeholder="+254 712 345 678"
+                      className="mt-1 bg-white border-gray-300"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="location" className="text-sm font-medium text-gray-700">
+                    Delivery Location *
+                  </Label>
+                  <Input
+                    id="location"
+                    type="text"
+                    required
+                    value={formData.location}
+                    onChange={(e) => handleInputChange("location", e.target.value)}
+                    placeholder="Enter delivery address"
+                    className="mt-1 bg-white border-gray-300"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="latitude" className="text-sm font-medium text-gray-700">
+                      Latitude *
+                    </Label>
+                    <Input
+                      id="latitude"
+                      type="number"
+                      step="any"
+                      required
+                      value={formData.latitude}
+                      onChange={(e) => handleInputChange("latitude", e.target.value)}
+                      placeholder="-1.2921"
+                      className="mt-1 bg-white border-gray-300"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="longitude" className="text-sm font-medium text-gray-700">
+                      Longitude *
+                    </Label>
+                    <Input
+                      id="longitude"
+                      type="number"
+                      step="any"
+                      required
+                      value={formData.longitude}
+                      onChange={(e) => handleInputChange("longitude", e.target.value)}
+                      placeholder="36.8219"
+                      className="mt-1 bg-white border-gray-300"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="produce" className="text-sm font-medium text-gray-700">
+                      Produce *
+                    </Label>
+                    <Input
+                      id="produce"
+                      type="text"
+                      required
+                      value={formData.produce}
+                      onChange={(e) => handleInputChange("produce", e.target.value)}
+                      placeholder="Tomatoes, Carrots, etc."
+                      className="mt-1 bg-white border-gray-300"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="drop_time" className="text-sm font-medium text-gray-700">
+                      Drop Time *
+                    </Label>
+                    <Input
+                      id="drop_time"
+                      type="time"
+                      required
+                      value={formData.drop_time}
+                      onChange={(e) => handleInputChange("drop_time", e.target.value)}
+                      className="mt-1 bg-white border-gray-300"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="estimated_value" className="text-sm font-medium text-gray-700">
+                      Estimated Value
+                    </Label>
+                    <Input
+                      id="estimated_value"
+                      type="text"
+                      value={formData.estimated_value}
+                      onChange={(e) => handleInputChange("estimated_value", e.target.value)}
+                      placeholder="KSh 2,500"
+                      className="mt-1 bg-white border-gray-300"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="weight" className="text-sm font-medium text-gray-700">
+                      Weight
+                    </Label>
+                    <Input
+                      id="weight"
+                      type="text"
+                      value={formData.weight}
+                      onChange={(e) => handleInputChange("weight", e.target.value)}
+                      placeholder="5kg"
+                      className="mt-1 bg-white border-gray-300"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      resetForm()
+                      setIsAddDialogOpen(false)
+                    }}
+                    className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {isSubmitting ? "Creating..." : "Create Delivery"}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
           <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white">
             <Download className="h-4 w-4 mr-2" />
             Export
@@ -191,6 +459,10 @@ export default function DeliveriesScreen() {
           <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white">
             <Filter className="h-4 w-4 mr-2" />
             More Filters
+          </Button>
+          <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white" onClick={loadDeliveries}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
           </Button>
         </div>
       </div>
@@ -202,7 +474,7 @@ export default function DeliveriesScreen() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Total Deliveries</p>
-                <p className="text-2xl font-bold text-gray-900">24</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
               </div>
               <Package className="h-8 w-8 text-blue-600" />
             </div>
@@ -213,7 +485,7 @@ export default function DeliveriesScreen() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Delivered</p>
-                <p className="text-2xl font-bold text-green-600">18</p>
+                <p className="text-2xl font-bold text-green-600">{stats.delivered}</p>
               </div>
               <CheckCircle className="h-8 w-8 text-green-600" />
             </div>
@@ -224,7 +496,7 @@ export default function DeliveriesScreen() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">In Transit</p>
-                <p className="text-2xl font-bold text-blue-600">4</p>
+                <p className="text-2xl font-bold text-blue-600">{stats.inTransit}</p>
               </div>
               <Truck className="h-8 w-8 text-blue-600" />
             </div>
@@ -235,7 +507,7 @@ export default function DeliveriesScreen() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Failed</p>
-                <p className="text-2xl font-bold text-red-600">2</p>
+                <p className="text-2xl font-bold text-red-600">{stats.failed}</p>
               </div>
               <XCircle className="h-8 w-8 text-red-600" />
             </div>
@@ -243,9 +515,33 @@ export default function DeliveriesScreen() {
         </Card>
       </div>
 
+      {/* Loading State */}
+      {isLoading && (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-500">Loading deliveries...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="text-center py-12">
+          <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Error loading deliveries</h3>
+          <p className="text-gray-500 mb-4">{error}</p>
+          <Button 
+            onClick={loadDeliveries}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            Try Again
+          </Button>
+        </div>
+      )}
+
       {/* Deliveries List */}
-      <div className="space-y-4">
-        {filteredDeliveries.map((delivery) => (
+      {!isLoading && !error && (
+        <div className="space-y-4">
+          {filteredDeliveries.map((delivery) => (
           <Card key={delivery.id} className="bg-white border border-gray-200 hover:shadow-md transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-start justify-between">
@@ -281,7 +577,7 @@ export default function DeliveriesScreen() {
                     <div>
                       <h4 className="font-medium text-gray-900 mb-2">Items & Value</h4>
                       <div className="space-y-1">
-                        {delivery.items.map((item, index) => (
+                        {delivery.items.map((item: string, index: number) => (
                           <p key={index} className="text-sm text-gray-600">
                             {item}
                           </p>
@@ -333,15 +629,16 @@ export default function DeliveriesScreen() {
             </CardContent>
           </Card>
         ))}
+        
+        {/* Empty State */}
+        {filteredDeliveries.length === 0 && (
+          <div className="text-center py-12">
+            <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No deliveries found</h3>
+            <p className="text-gray-500">Try adjusting your search or filter criteria</p>
+          </div>
+        )}
       </div>
-
-      {/* Empty State */}
-      {filteredDeliveries.length === 0 && (
-        <div className="text-center py-12">
-          <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No deliveries found</h3>
-          <p className="text-gray-500">Try adjusting your search or filter criteria</p>
-        </div>
       )}
     </div>
   )
