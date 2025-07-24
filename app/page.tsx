@@ -1,305 +1,446 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import {
-  Search,
-  Menu,
-  Settings,
-  Bell,
-  Route,
-  Users,
-  Package,
-  Navigation,
-  Calendar,
-  BarChart3,
-  UserPlus,
-  HelpCircle,
-} from "lucide-react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Separator } from "@/components/ui/separator"
-import FeatureTour, { useFeatureTour } from "@/components/feature-tour"
+import { CheckCircle, Truck, Users, Route, BarChart3, Building2, Mail, Lock, User, Phone, MapPin } from "lucide-react"
 
-// Import all screen components
-import RoutesScreen from "./screens/routes-screen"
-import DeliveriesScreen from "./screens/deliveries-screen"
-import DriversScreen from "./screens/drivers-screen"
-import OptimizeScreen from "./screens/optimize-screen"
-import ScheduleScreen from "./screens/schedule-screen"
-import AnalyticsScreen from "./screens/analytics-screen"
-import SettingsScreen from "./screens/settings-screen"
-import AssignDriversScreen from "./screens/assign-drivers-screen"
-import RouteMapScreen from "./screens/route-map-screen"
+type OnboardingStep = "auth" | "setup" | "complete"
 
-const sidebarItems = [
-  { id: "routes", icon: Route, label: "Routes", count: 8 },
-  { id: "deliveries", icon: Package, label: "Deliveries", count: 24 },
-  { id: "drivers", icon: Users, label: "Drivers", count: 12 },
-  { id: "optimize", icon: Navigation, label: "Optimize" },
-  { id: "schedule", icon: Calendar, label: "Schedule" },
-  { id: "analytics", icon: BarChart3, label: "Analytics" },
-  { id: "assign", icon: UserPlus, label: "Assign Drivers" },
-  { id: "settings", icon: Settings, label: "Settings" },
-]
-
-export default function SafeMoonApp() {
-  const [activeScreen, setActiveScreen] = useState("routes")
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [selectedRoute, setSelectedRoute] = useState<any>(null)
-  const [routeDeliveries, setRouteDeliveries] = useState<any[]>([])
-  const [isFirstTime, setIsFirstTime] = useState(false)
+export default function HomePage() {
+  const [currentStep, setCurrentStep] = useState<OnboardingStep>("auth")
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login")
+  const [isLoading, setIsLoading] = useState(false)
   
-  const { showTour, hasCompletedTour, startTour, closeTour, completeTour } = useFeatureTour()
+  // Auth form state
+  const [authForm, setAuthForm] = useState({
+    email: "",
+    password: "",
+    confirmPassword: "",
+    fullName: "",
+  })
 
-  // Check if this is a first-time user
-  useEffect(() => {
-    const hasVisited = localStorage.getItem('roundi-has-visited')
-    if (!hasVisited) {
-      setIsFirstTime(true)
-      localStorage.setItem('roundi-has-visited', 'true')
+  // Setup form state
+  const [setupForm, setSetupForm] = useState({
+    companyName: "",
+    industry: "",
+    teamSize: "",
+    location: "",
+    phone: "",
+    operatingHours: "",
+  })
+
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+
+    try {
+      // Simulate auth process
+      await new Promise(resolve => setTimeout(resolve, 1500))
       
-      // Auto-start tour for first-time users after a brief delay
-      setTimeout(() => {
-        if (!hasCompletedTour) {
-          startTour()
-        }
-      }, 1500)
-    }
-  }, [hasCompletedTour, startTour])
-
-  const handleViewRouteMap = (route: any, deliveries: any[]) => {
-    setSelectedRoute(route)
-    setRouteDeliveries(deliveries)
-    setActiveScreen("route-map")
-  }
-
-  const handleBackToRoutes = () => {
-    setActiveScreen("routes")
-    setSelectedRoute(null)
-    setRouteDeliveries([])
-  }
-
-  const renderScreen = () => {
-    switch (activeScreen) {
-      case "routes":
-        return <RoutesScreen onViewRouteMap={handleViewRouteMap} />
-      case "deliveries":
-        return <DeliveriesScreen />
-      case "drivers":
-        return <DriversScreen />
-      case "optimize":
-        return <OptimizeScreen />
-      case "schedule":
-        return <ScheduleScreen />
-      case "analytics":
-        return <AnalyticsScreen />
-      case "assign":
-        return <AssignDriversScreen />
-      case "settings":
-        return <SettingsScreen />
-      case "route-map":
-        return selectedRoute && routeDeliveries ? (
-          <RouteMapScreen 
-            route={selectedRoute}
-            deliveries={routeDeliveries}
-            onBack={handleBackToRoutes}
-          />
-        ) : <RoutesScreen onViewRouteMap={handleViewRouteMap} />
-      default:
-        return <RoutesScreen onViewRouteMap={handleViewRouteMap} />
+      if (authMode === "signup") {
+        setCurrentStep("setup")
+      } else {
+        // For existing users, redirect to dashboard
+        window.location.href = "/dashboard"
+      }
+    } catch (error) {
+      console.error("Auth error:", error)
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const getScreenTitle = () => {
-    const screen = sidebarItems.find((item) => item.id === activeScreen)
-    return screen ? screen.label : "Routes"
+  const handleSetupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+
+    try {
+      // Simulate setup process
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      setCurrentStep("complete")
+    } catch (error) {
+      console.error("Setup error:", error)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  return (
-    <div className="h-screen bg-white flex overflow-hidden">
-      {/* Feature Tour */}
-      <FeatureTour 
-        isOpen={showTour}
-        onClose={closeTour}
-        onComplete={completeTour}
-      />
+  const handleComplete = () => {
+    // Redirect to main dashboard
+    window.location.href = "/dashboard"
+  }
 
-      {/* First-time user welcome banner */}
-      {isFirstTime && !hasCompletedTour && !showTour && (
-        <div className="fixed top-0 left-0 right-0 z-40 bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 shadow-lg">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-                <HelpCircle className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="font-semibold">Welcome to Roundi! 🎉</h3>
-                <p className="text-sm text-blue-100">Take a quick tour to learn about your delivery management dashboard</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={startTour}
-                className="bg-white text-blue-600 border-white hover:bg-blue-50"
-              >
-                Start Tour
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={() => setIsFirstTime(false)}
-                className="text-white hover:bg-white hover:bg-opacity-10"
-              >
-                Skip
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+  const features = [
+    {
+      icon: Route,
+      title: "Smart Route Planning",
+      description: "AI-powered route optimization that reduces delivery time by up to 40%"
+    },
+    {
+      icon: Users,
+      title: "Driver Management",
+      description: "Comprehensive driver tracking, assignment, and performance monitoring"
+    },
+    {
+      icon: Truck,
+      title: "Real-time Tracking",
+      description: "Live delivery tracking with customer notifications and updates"
+    },
+    {
+      icon: BarChart3,
+      title: "Analytics & Insights",
+      description: "Detailed reports on delivery performance, costs, and efficiency metrics"
+    }
+  ]
 
-      {/* Left Sidebar */}
-      <div
-        className={`bg-white border-r border-gray-200 transition-all duration-300 ${
-          sidebarCollapsed ? "w-16" : "w-80"
-        } flex flex-col shadow-sm ${isFirstTime && !hasCompletedTour ? 'mt-16' : ''}`}
-        id="sidebar"
-      >
-        {/* Header */}
-        <div className="p-4 border-b border-gray-100">
-          <div className="flex items-center justify-between">
-            {!sidebarCollapsed && (
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Roundi</h1>
-                <p className="text-sm text-gray-500">Delivery Management</p>
-              </div>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="text-gray-500 hover:text-gray-900 hover:bg-gray-50"
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 p-4">
-          <div className="space-y-1">
-            {sidebarItems.map((item) => (
-              <Button
-                key={item.id}
-                variant={activeScreen === item.id ? "secondary" : "ghost"}
-                onClick={() => setActiveScreen(item.id)}
-                className={`w-full justify-start ${sidebarCollapsed ? "px-2" : "px-4"} ${
-                  activeScreen === item.id
-                    ? "bg-blue-50 text-blue-700 border border-blue-200"
-                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                }`}
-                id={`${item.id}-section`}
-              >
-                <item.icon className="h-5 w-5" />
-                {!sidebarCollapsed && (
-                  <>
-                    <span className="ml-3 flex-1 text-left">{item.label}</span>
-                    {item.count && (
-                      <Badge variant="secondary" className="bg-gray-100 text-gray-600 text-xs">
-                        {item.count}
-                      </Badge>
-                    )}
-                  </>
-                )}
-              </Button>
-            ))}
-          </div>
-        </nav>
-
-        {/* Quick Stats */}
-        {!sidebarCollapsed && (
-          <div className="p-4 border-t border-gray-100 bg-gray-50">
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="text-center">
-                <p className="text-lg font-bold text-gray-900">24</p>
-                <p className="text-xs text-gray-500">Active</p>
-              </div>
-              <div className="text-center">
-                <p className="text-lg font-bold text-green-600">18</p>
-                <p className="text-xs text-gray-500">Completed</p>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm">
-                Quick Actions
-              </Button>
-              {hasCompletedTour && (
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={startTour}
-                  className="w-full text-xs"
-                >
-                  <HelpCircle className="w-3 h-3 mr-1" />
-                  Take Tour Again
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Main Content */}
-      <div className={`flex-1 flex flex-col bg-white ${isFirstTime && !hasCompletedTour ? 'mt-16' : ''}`}>
-        {/* Top Bar */}
-        <div className="bg-white border-b border-gray-200 p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4 flex-1">
-              <h2 className="text-xl font-semibold text-gray-900">{getScreenTitle()}</h2>
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Search..."
-                  className="pl-10 bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Button variant="ghost" size="icon" className="text-gray-500 hover:text-gray-900 hover:bg-gray-50">
-                <Bell className="h-5 w-5" />
-              </Button>
-              {!sidebarCollapsed && hasCompletedTour && (
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={startTour}
-                  className="text-gray-500 hover:text-gray-900 hover:bg-gray-50"
-                  title="Take feature tour"
-                >
-                  <HelpCircle className="h-5 w-5" />
-                </Button>
-              )}
-              <Separator orientation="vertical" className="h-6" />
-              <div className="flex items-center space-x-2">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src="/placeholder.svg?height=32&width=32" />
-                  <AvatarFallback className="bg-gray-100 text-gray-600">DM</AvatarFallback>
-                </Avatar>
-                <div className="hidden md:block">
-                  <p className="text-sm font-medium text-gray-900">David Manager</p>
-                  <p className="text-xs text-gray-500">Operations Lead</p>
+  if (currentStep === "auth") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-6xl grid lg:grid-cols-2 gap-8 items-center">
+          {/* Left Side - Branding & Features */}
+          <div className="space-y-8">
+            <div>
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
+                  <Truck className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">Roundi</h1>
+                  <p className="text-gray-600">Delivery Management Platform</p>
                 </div>
               </div>
+              <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                Streamline Your Delivery Operations
+              </h2>
+              <p className="text-xl text-gray-600 mb-8">
+                Join thousands of businesses using Roundi to optimize their delivery operations and delight customers.
+              </p>
+            </div>
+
+            <div className="grid gap-6">
+              {features.map((feature, index) => (
+                <div key={index} className="flex items-start space-x-4">
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <feature.icon className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-1">{feature.title}</h3>
+                    <p className="text-gray-600 text-sm">{feature.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center space-x-4 text-sm text-gray-500">
+              <div className="flex items-center space-x-1">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                <span>Free 14-day trial</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                <span>No credit card required</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                <span>Cancel anytime</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Screen Content */}
-        <div className="flex-1 overflow-auto">{renderScreen()}</div>
+          {/* Right Side - Auth Form */}
+          <Card className="w-full max-w-md mx-auto bg-white shadow-xl border-0">
+            <CardHeader className="text-center pb-2">
+              <CardTitle className="text-2xl">
+                {authMode === "login" ? "Welcome back" : "Get started today"}
+              </CardTitle>
+              <CardDescription>
+                {authMode === "login" 
+                  ? "Sign in to your account to continue" 
+                  : "Create your account to start optimizing deliveries"
+                }
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Tabs value={authMode} onValueChange={(value) => setAuthMode(value as "login" | "signup")} className="mb-6">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="login">Sign In</TabsTrigger>
+                  <TabsTrigger value="signup">Sign Up</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="login" className="mt-6">
+                  <form onSubmit={handleAuthSubmit} className="space-y-4">
+                    <div>
+                      <Label htmlFor="email">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <Input
+                          id="email"
+                          type="email"
+                          placeholder="you@company.com"
+                          className="pl-10"
+                          value={authForm.email}
+                          onChange={(e) => setAuthForm({...authForm, email: e.target.value})}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="password">Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <Input
+                          id="password"
+                          type="password"
+                          placeholder="••••••••"
+                          className="pl-10"
+                          value={authForm.password}
+                          onChange={(e) => setAuthForm({...authForm, password: e.target.value})}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={isLoading}>
+                      {isLoading ? "Signing in..." : "Sign In"}
+                    </Button>
+                  </form>
+                </TabsContent>
+
+                <TabsContent value="signup" className="mt-6">
+                  <form onSubmit={handleAuthSubmit} className="space-y-4">
+                    <div>
+                      <Label htmlFor="fullName">Full Name</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <Input
+                          id="fullName"
+                          placeholder="John Doe"
+                          className="pl-10"
+                          value={authForm.fullName}
+                          onChange={(e) => setAuthForm({...authForm, fullName: e.target.value})}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="signup-email">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <Input
+                          id="signup-email"
+                          type="email"
+                          placeholder="you@company.com"
+                          className="pl-10"
+                          value={authForm.email}
+                          onChange={(e) => setAuthForm({...authForm, email: e.target.value})}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="signup-password">Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <Input
+                          id="signup-password"
+                          type="password"
+                          placeholder="••••••••"
+                          className="pl-10"
+                          value={authForm.password}
+                          onChange={(e) => setAuthForm({...authForm, password: e.target.value})}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="confirm-password">Confirm Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <Input
+                          id="confirm-password"
+                          type="password"
+                          placeholder="••••••••"
+                          className="pl-10"
+                          value={authForm.confirmPassword}
+                          onChange={(e) => setAuthForm({...authForm, confirmPassword: e.target.value})}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={isLoading}>
+                      {isLoading ? "Creating account..." : "Create Account"}
+                    </Button>
+                  </form>
+                </TabsContent>
+              </Tabs>
+
+              <div className="text-center text-sm text-gray-500">
+                By continuing, you agree to our{" "}
+                <a href="#" className="text-blue-600 hover:underline">Terms of Service</a> and{" "}
+                <a href="#" className="text-blue-600 hover:underline">Privacy Policy</a>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
+
+  if (currentStep === "setup") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-2xl bg-white shadow-xl border-0">
+          <CardHeader className="text-center">
+            <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Building2 className="w-8 h-8 text-white" />
+            </div>
+            <CardTitle className="text-3xl">Set up your organization</CardTitle>
+            <CardDescription className="text-lg">
+              Let's get your delivery operation configured in just a few steps
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSetupSubmit} className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="companyName">Company Name *</Label>
+                  <Input
+                    id="companyName"
+                    placeholder="Acme Delivery Co."
+                    value={setupForm.companyName}
+                    onChange={(e) => setSetupForm({...setupForm, companyName: e.target.value})}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="industry">Industry</Label>
+                  <Input
+                    id="industry"
+                    placeholder="Food & Beverage"
+                    value={setupForm.industry}
+                    onChange={(e) => setSetupForm({...setupForm, industry: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="teamSize">Team Size</Label>
+                  <Input
+                    id="teamSize"
+                    placeholder="10-50 employees"
+                    value={setupForm.teamSize}
+                    onChange={(e) => setSetupForm({...setupForm, teamSize: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="phone">Phone Number</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="phone"
+                      placeholder="+254 7XX XXX XXX"
+                      className="pl-10"
+                      value={setupForm.phone}
+                      onChange={(e) => setSetupForm({...setupForm, phone: e.target.value})}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="location">Primary Location</Label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="location"
+                    placeholder="Nairobi, Kenya"
+                    className="pl-10"
+                    value={setupForm.location}
+                    onChange={(e) => setSetupForm({...setupForm, location: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="operatingHours">Operating Hours</Label>
+                <Input
+                  id="operatingHours"
+                  placeholder="8:00 AM - 6:00 PM"
+                  value={setupForm.operatingHours}
+                  onChange={(e) => setSetupForm({...setupForm, operatingHours: e.target.value})}
+                />
+              </div>
+
+              <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-lg py-6" disabled={isLoading}>
+                {isLoading ? "Setting up your account..." : "Complete Setup"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (currentStep === "complete") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-2xl bg-white shadow-xl border-0">
+          <CardContent className="text-center py-12">
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle className="w-10 h-10 text-green-600" />
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">
+              Welcome to Roundi! 🎉
+            </h1>
+            <p className="text-xl text-gray-600 mb-8">
+              Your account is ready. Let's start optimizing your delivery operations.
+            </p>
+
+            <div className="grid md:grid-cols-2 gap-6 mb-8">
+              <div className="text-left p-4 bg-blue-50 rounded-lg">
+                <h3 className="font-semibold text-blue-900 mb-2">Next steps:</h3>
+                <ul className="space-y-2 text-sm text-blue-700">
+                  <li>• Add your first delivery route</li>
+                  <li>• Invite and onboard drivers</li>
+                  <li>• Set up delivery zones</li>
+                  <li>• Configure notifications</li>
+                </ul>
+              </div>
+              <div className="text-left p-4 bg-green-50 rounded-lg">
+                <h3 className="font-semibold text-green-900 mb-2">Need help?</h3>
+                <ul className="space-y-2 text-sm text-green-700">
+                  <li>• Check out our quick start guide</li>
+                  <li>• Watch tutorial videos</li>
+                  <li>• Contact our support team</li>
+                  <li>• Join our community forum</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button 
+                onClick={handleComplete}
+                className="bg-blue-600 hover:bg-blue-700 text-lg px-8 py-6"
+              >
+                Enter Dashboard
+              </Button>
+              <Button 
+                variant="outline" 
+                className="text-lg px-8 py-6 border-gray-300"
+              >
+                Take a Tour
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  return null
 }
