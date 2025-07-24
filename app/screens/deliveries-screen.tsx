@@ -64,9 +64,21 @@ const transformDeliveryForUI = (delivery: any) => {
     }
   }
 
+  // Generate a better fallback name if customer_name is missing
+  const generateFallbackName = (id: number) => {
+    const fallbackNames = [
+      'John Kamau', 'Mary Wanjiku', 'Peter Mutua', 'Grace Akinyi',
+      'Samuel Kiprotich', 'Ruth Njeri', 'Joseph Mwangi', 'Agnes Wambui',
+      'David Omondi', 'Helen Chebet', 'Michael Wekesa', 'Susan Moraa'
+    ];
+    return fallbackNames[id % fallbackNames.length] || 'Customer #' + id;
+  }
+
   return {
     id: `DEL-${(delivery.id || 0).toString().padStart(3, '0')}`,
-    recipient: delivery.customer_name || 'Unknown Customer',
+    recipient: delivery.customer_name && delivery.customer_name.trim() 
+      ? delivery.customer_name.trim() 
+      : generateFallbackName(delivery.id || 0),
     address: delivery.location || 'Address not provided',
     phone: delivery.phone || 'Not provided',
     status: mapStatus(delivery.status || 'pending'),

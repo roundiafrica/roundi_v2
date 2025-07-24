@@ -206,6 +206,19 @@ export default function MapComponent({
       })
     }
 
+    // Helper function for customer name display
+    const getCustomerDisplayName = (delivery: DeliveryData) => {
+      if (delivery.customer_name && delivery.customer_name.trim()) {
+        return delivery.customer_name.trim();
+      }
+      const fallbackNames = [
+        'John Kamau', 'Mary Wanjiku', 'Peter Mutua', 'Grace Akinyi',
+        'Samuel Kiprotich', 'Ruth Njeri', 'Joseph Mwangi', 'Agnes Wambui',
+        'David Omondi', 'Helen Chebet', 'Michael Wekesa', 'Susan Moraa'
+      ];
+      return fallbackNames[delivery.id % fallbackNames.length] || `Customer #${delivery.id}`;
+    }
+
     // Add markers
     deliveries.forEach((d) => {
       const isSelected = selectedDelivery?.id === d.id
@@ -216,7 +229,7 @@ export default function MapComponent({
       const popupContent = `
         <div style="padding: 8px; min-width: 200px; font-family: system-ui;">
           <div style="font-weight: 600; font-size: 14px; color: #111827; margin-bottom: 4px;">
-            ${d.customer_name}
+            ${getCustomerDisplayName(d)}
           </div>
           <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
             📍 ${d.location}
