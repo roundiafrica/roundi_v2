@@ -453,7 +453,7 @@ export default function RouteMapScreen({ route, deliveries, onBack }: RouteMapSc
         </div>
 
         {/* Right Side - Enhanced Map - Full Background */}
-        <div className="flex-1 bg-slate-50 relative map-mobile lg:h-auto h-96">
+        <div className="flex-1 bg-slate-50 relative map-mobile lg:h-auto h-96 z-0">
           <MapComponent
             deliveries={optimizedDeliveries}
             selectedDelivery={selectedDelivery}
@@ -462,7 +462,7 @@ export default function RouteMapScreen({ route, deliveries, onBack }: RouteMapSc
           
           {/* Route Optimization Card Overlay */}
           {optimizationResult && optimizedDeliveries !== deliveries && (
-            <div className="absolute top-4 left-4 right-4 z-10">
+            <div className="absolute top-4 left-4 right-4 z-20">
               <Card className="bg-white/95 backdrop-blur-sm border-emerald-200 shadow-lg">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between flex-wrap gap-3">
@@ -498,7 +498,7 @@ export default function RouteMapScreen({ route, deliveries, onBack }: RouteMapSc
           )}
           
           {/* Floating Map Controls */}
-          <div className="absolute top-4 right-4 space-y-2">
+          <div className="absolute top-4 right-4 space-y-2 z-20">
             <Card className="bg-white/90 backdrop-blur-sm border border-white/20 shadow-lg map-overlay">
               <CardContent className="p-3">
                 <div className="flex items-center space-x-2 text-sm flex-wrap">
@@ -540,7 +540,7 @@ export default function RouteMapScreen({ route, deliveries, onBack }: RouteMapSc
 
       {/* Enhanced Route Optimization Dialog */}
       <Dialog open={isOptimizeDialogOpen} onOpenChange={setIsOptimizeDialogOpen}>
-        <DialogContent className="max-w-6xl w-[95vw] h-[85vh] bg-white border-gray-200 z-[100] overflow-hidden">
+        <DialogContent className="max-w-6xl w-[95vw] h-[85vh] bg-white border-gray-200 z-[9999] overflow-hidden">
           <DialogHeader className="pb-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-purple-50 -m-6 mb-0 p-6">
             <DialogTitle className="text-gray-900 flex items-center text-2xl font-bold">
               <div className="h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
