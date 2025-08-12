@@ -344,15 +344,15 @@ export default function CollectionPointsScreen({ onBack }: CollectionPointsScree
           </Card>
           
           <Card className="bg-emerald-50 border-emerald-200">
-            <CardContent className="p-4">
+            <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-emerald-600">Active</p>
-                  <p className="text-2xl font-bold text-emerald-900">
+                  <p className="text-xs sm:text-sm font-medium text-emerald-600">Active</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-emerald-900">
                     {collectionPoints.filter(p => p.status === 'active').length}
                   </p>
                 </div>
-                <CheckCircle className="h-8 w-8 text-emerald-600" />
+                <CheckCircle className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-emerald-600" />
               </div>
             </CardContent>
           </Card>
