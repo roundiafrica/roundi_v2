@@ -358,29 +358,29 @@ export default function CollectionPointsScreen({ onBack }: CollectionPointsScree
           </Card>
 
           <Card className="bg-amber-50 border-amber-200">
-            <CardContent className="p-4">
+            <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-amber-600">Maintenance</p>
-                  <p className="text-2xl font-bold text-amber-900">
+                  <p className="text-xs sm:text-sm font-medium text-amber-600">Maintenance</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-amber-900">
                     {collectionPoints.filter(p => p.status === 'maintenance').length}
                   </p>
                 </div>
-                <AlertCircle className="h-8 w-8 text-amber-600" />
+                <AlertCircle className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-amber-600" />
               </div>
             </CardContent>
           </Card>
 
           <Card className="bg-purple-50 border-purple-200">
-            <CardContent className="p-4">
+            <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-purple-600">Total Vehicles</p>
-                  <p className="text-2xl font-bold text-purple-900">
+                  <p className="text-xs sm:text-sm font-medium text-purple-600">Total Vehicles</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-900">
                     {collectionPoints.reduce((sum, p) => sum + p.assignedVehicles, 0)}
                   </p>
                 </div>
-                <Car className="h-8 w-8 text-purple-600" />
+                <Car className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-purple-600" />
               </div>
             </CardContent>
           </Card>
@@ -409,7 +409,7 @@ export default function CollectionPointsScreen({ onBack }: CollectionPointsScree
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
             {filteredPoints.map((point) => (
               <Card key={point.id} className="bg-white border-slate-200 shadow-sm hover:shadow-md transition-shadow">
                 <CardHeader className="pb-3">
