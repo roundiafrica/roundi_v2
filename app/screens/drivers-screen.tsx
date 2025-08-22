@@ -16,6 +16,7 @@ import {
   Activity,
   RefreshCw,
   AlertCircle,
+  X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -83,7 +84,9 @@ export default function DriversScreen() {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [editingDriver, setEditingDriver] = useState<any>(null)
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
@@ -96,8 +99,10 @@ export default function DriversScreen() {
     email: "",
     phone: "",
     vehicle_type: "",
-    license_number: ""
+    license_number: "",
+    status: "active"
   })
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
   // Load drivers from Supabase
   const loadDrivers = async () => {
@@ -131,8 +136,46 @@ export default function DriversScreen() {
     loadDrivers()
   }, [])
 
+  // Form validation
+  const validateForm = () => {
+    const errors: Record<string, string> = {}
+    
+    if (!formData.name.trim()) {
+      errors.name = "Name is required"
+    } else if (formData.name.trim().length < 2) {
+      errors.name = "Name must be at least 2 characters"
+    }
+    
+    if (!formData.phone.trim()) {
+      errors.phone = "Phone number is required"
+    } else if (!/^\+?[\d\s-]{10,}$/.test(formData.phone.trim())) {
+      errors.phone = "Please enter a valid phone number"
+    }
+    
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = "Please enter a valid email address"
+    }
+    
+    if (!formData.vehicle_type) {
+      errors.vehicle_type = "Vehicle type is required"
+    }
+    
+    if (!formData.license_number.trim()) {
+      errors.license_number = "License number is required"
+    } else if (formData.license_number.trim().length < 3) {
+      errors.license_number = "License number must be at least 3 characters"
+    }
+    
+    setFormErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+    // Clear error for this field when user starts typing
+    if (formErrors[field]) {
+      setFormErrors(prev => ({ ...prev, [field]: "" }))
+    }
   }
 
   const resetForm = () => {
@@ -141,12 +184,107 @@ export default function DriversScreen() {
       email: "",
       phone: "",
       vehicle_type: "",
-      license_number: ""
+      license_number: "",
+      status: "active"
     })
+    setFormErrors({})
+  }
+
+  // Handle ESC key to close modal
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isEditDialogOpen) {
+        setIsEditDialogOpen(false)
+        setEditingDriver(null)
+        resetForm()
+      }
+    }
+    
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [isEditDialogOpen])
+
+  // Handle edit driver
+  const handleEditDriver = (driver: any) => {
+    setEditingDriver(driver)
+    
+    // Reverse the status mapping for editing
+    const getRawStatus = (uiStatus: string) => {
+      switch (uiStatus) {
+        case 'busy': return 'on_break'
+        case 'offline': return 'inactive'
+        default: return uiStatus
+      }
+    }
+
+    // Parse vehicle information safely
+    let vehicleType = ''
+    let licenseNumber = ''
+    
+    if (driver.vehicle && typeof driver.vehicle === 'string') {
+      const parts = driver.vehicle.split(' - ')
+      vehicleType = parts[0] || ''
+      licenseNumber = parts[1] || ''
+    }
+
+    setFormData({
+      name: driver.name || '',
+      email: (driver.email && !driver.email.includes('@roundi.com')) ? driver.email : '',
+      phone: driver.phone || '',
+      vehicle_type: vehicleType,
+      license_number: licenseNumber,
+      status: getRawStatus(driver.status) || 'active'
+    })
+    
+    setIsEditDialogOpen(true)
+  }
+
+  // Handle update driver
+  const handleUpdateDriver = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingDriver) return
+    
+    if (!validateForm()) {
+      return
+    }
+    
+    setIsSubmitting(true)
+
+    try {
+      const driverData = {
+        name: formData.name,
+        email: formData.email || null,
+        phone: formData.phone,
+        vehicle_type: formData.vehicle_type,
+        license_number: formData.license_number,
+        status: formData.status as 'active' | 'on_break' | 'inactive',
+      }
+
+      await DriverService.updateDriver(editingDriver.id, driverData)
+      
+      // Reset form and close dialog
+      resetForm()
+      setIsEditDialogOpen(false)
+      setEditingDriver(null)
+      
+      // Refresh drivers list
+      await loadDrivers()
+      
+    } catch (error) {
+      console.error('Error updating driver:', error)
+      // TODO: Show error toast notification
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (!validateForm()) {
+      return
+    }
+    
     setIsSubmitting(true)
 
     try {
@@ -211,42 +349,55 @@ export default function DriversScreen() {
     }
   }
 
+  // Helper component for form field errors
+  const FieldError = ({ error }: { error?: string }) => {
+    if (!error) return null
+    return (
+      <p className="text-sm text-red-600 mt-1 flex items-center">
+        <AlertCircle className="h-3 w-3 mr-1" />
+        {error}
+      </p>
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-4 lg:p-6 relative">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Drivers</h1>
-              <p className="text-gray-600 mt-1">Manage your delivery team and assignments</p>
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-4">
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">Drivers</h1>
+              <p className="text-sm sm:text-base text-gray-600 mt-1">Manage your delivery team and assignments</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
               <Button 
                 variant="outline" 
                 size="sm"
                 onClick={loadDrivers}
-                className="text-gray-600"
+                className="text-gray-600 text-xs sm:text-sm"
               >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
+                <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Refresh</span>
               </Button>
               <Button 
                 variant="outline" 
                 size="sm"
-                className="text-gray-600"
+                className="text-gray-600 text-xs sm:text-sm"
               >
-                <Download className="h-4 w-4 mr-2" />
-                Export
+                <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Export</span>
               </Button>
+              
               <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Driver
+                  <Button size="default" className="text-sm sm:text-sm px-4 py-2 h-10 sm:h-9">
+                    <Plus className="h-4 w-4 sm:h-4 sm:w-4 mr-2 sm:mr-2" />
+                    <span className="hidden sm:inline">Add Driver</span>
+                    <span className="sm:hidden">Add</span>
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-md mx-4 sm:mx-0">
                   <DialogHeader>
                     <DialogTitle>Add Driver</DialogTitle>
                     <DialogDescription>
@@ -261,8 +412,10 @@ export default function DriversScreen() {
                         placeholder="Enter driver name" 
                         value={formData.name}
                         onChange={(e) => handleInputChange("name", e.target.value)}
+                        className={formErrors.name ? "border-red-500 focus:border-red-500" : ""}
                         required
                       />
+                      <FieldError error={formErrors.name} />
                     </div>
                     <div>
                       <Label htmlFor="email">Email</Label>
@@ -272,7 +425,9 @@ export default function DriversScreen() {
                         placeholder="driver@roundi.com"
                         value={formData.email}
                         onChange={(e) => handleInputChange("email", e.target.value)}
+                        className={formErrors.email ? "border-red-500 focus:border-red-500" : ""}
                       />
+                      <FieldError error={formErrors.email} />
                     </div>
                     <div>
                       <Label htmlFor="phone">Phone *</Label>
@@ -281,13 +436,15 @@ export default function DriversScreen() {
                         placeholder="+254 7XX XXX XXX" 
                         value={formData.phone}
                         onChange={(e) => handleInputChange("phone", e.target.value)}
+                        className={formErrors.phone ? "border-red-500 focus:border-red-500" : ""}
                         required
                       />
+                      <FieldError error={formErrors.phone} />
                     </div>
                     <div>
                       <Label htmlFor="vehicle_type">Vehicle Type *</Label>
                       <Select value={formData.vehicle_type} onValueChange={(value) => handleInputChange("vehicle_type", value)}>
-                        <SelectTrigger>
+                        <SelectTrigger className={formErrors.vehicle_type ? "border-red-500 focus:border-red-500" : ""}>
                           <SelectValue placeholder="Select vehicle type" />
                         </SelectTrigger>
                         <SelectContent>
@@ -296,6 +453,7 @@ export default function DriversScreen() {
                           <SelectItem value="Truck">Truck</SelectItem>
                         </SelectContent>
                       </Select>
+                      <FieldError error={formErrors.vehicle_type} />
                     </div>
                     <div>
                       <Label htmlFor="license_number">License Number *</Label>
@@ -304,8 +462,10 @@ export default function DriversScreen() {
                         placeholder="KCA123D"
                         value={formData.license_number}
                         onChange={(e) => handleInputChange("license_number", e.target.value)}
+                        className={formErrors.license_number ? "border-red-500 focus:border-red-500" : ""}
                         required
                       />
+                      <FieldError error={formErrors.license_number} />
                     </div>
                     <div className="flex justify-end gap-3 pt-4">
                       <Button
@@ -320,7 +480,7 @@ export default function DriversScreen() {
                       </Button>
                       <Button 
                         type="submit"
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || !formData.name || !formData.phone || !formData.vehicle_type || !formData.license_number}
                       >
                         {isSubmitting ? "Adding..." : "Add Driver"}
                       </Button>
@@ -328,22 +488,146 @@ export default function DriversScreen() {
                   </form>
                 </DialogContent>
               </Dialog>
+
+              {/* Edit Driver Dialog */}
+              {isEditDialogOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                  <div 
+                    className="fixed inset-0 bg-black bg-opacity-50" 
+                    onClick={() => setIsEditDialogOpen(false)}
+                  />
+                  <div className="relative z-[101] w-full max-w-lg sm:max-w-xl lg:max-w-2xl bg-white rounded-lg shadow-2xl border border-gray-300 max-h-[90vh] overflow-y-auto">
+                    <div className="p-4 sm:p-6">
+                      <div className="flex items-center justify-between mb-4 border-b border-gray-200 pb-4">
+                        <h2 className="text-lg sm:text-xl font-bold text-blue-900 flex items-center min-w-0">
+                          <Edit className="h-4 w-4 sm:h-5 sm:w-5 mr-2 flex-shrink-0" />
+                          <span className="truncate">Edit Driver: {editingDriver?.name || 'Unknown'}</span>
+                        </h2>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setIsEditDialogOpen(false)}
+                          className="text-gray-400 hover:text-gray-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <form onSubmit={handleUpdateDriver} className="space-y-3 sm:space-y-4">
+                    <div>
+                      <Label htmlFor="editDriverName">Name *</Label>
+                      <Input 
+                        id="editDriverName" 
+                        placeholder="Enter driver name" 
+                        value={formData.name}
+                        onChange={(e) => handleInputChange("name", e.target.value)}
+                        className={formErrors.name ? "border-red-500 focus:border-red-500" : ""}
+                        required
+                      />
+                      <FieldError error={formErrors.name} />
+                    </div>
+                    <div>
+                      <Label htmlFor="editEmail">Email</Label>
+                      <Input
+                        id="editEmail"
+                        type="email"
+                        placeholder="driver@roundi.com"
+                        value={formData.email}
+                        onChange={(e) => handleInputChange("email", e.target.value)}
+                        className={formErrors.email ? "border-red-500 focus:border-red-500" : ""}
+                      />
+                      <FieldError error={formErrors.email} />
+                    </div>
+                    <div>
+                      <Label htmlFor="editPhone">Phone *</Label>
+                      <Input 
+                        id="editPhone" 
+                        placeholder="+254 7XX XXX XXX" 
+                        value={formData.phone}
+                        onChange={(e) => handleInputChange("phone", e.target.value)}
+                        className={formErrors.phone ? "border-red-500 focus:border-red-500" : ""}
+                        required
+                      />
+                      <FieldError error={formErrors.phone} />
+                    </div>
+                    <div>
+                      <Label htmlFor="editVehicleType">Vehicle Type *</Label>
+                      <Select value={formData.vehicle_type} onValueChange={(value) => handleInputChange("vehicle_type", value)}>
+                        <SelectTrigger className={formErrors.vehicle_type ? "border-red-500 focus:border-red-500" : ""}>
+                          <SelectValue placeholder="Select vehicle type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Motorcycle">Motorcycle</SelectItem>
+                          <SelectItem value="Van">Van</SelectItem>
+                          <SelectItem value="Truck">Truck</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FieldError error={formErrors.vehicle_type} />
+                    </div>
+                    <div>
+                      <Label htmlFor="editLicenseNumber">License Number *</Label>
+                      <Input
+                        id="editLicenseNumber"
+                        placeholder="KCA123D"
+                        value={formData.license_number}
+                        onChange={(e) => handleInputChange("license_number", e.target.value)}
+                        className={formErrors.license_number ? "border-red-500 focus:border-red-500" : ""}
+                        required
+                      />
+                      <FieldError error={formErrors.license_number} />
+                    </div>
+                    <div>
+                      <Label htmlFor="editStatus">Status</Label>
+                      <Select value={formData.status} onValueChange={(value) => handleInputChange("status", value)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="on_break">On Break</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex justify-end gap-3 pt-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          resetForm()
+                          setIsEditDialogOpen(false)
+                          setEditingDriver(null)
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        type="submit"
+                        disabled={isSubmitting || !formData.name || !formData.phone || !formData.vehicle_type || !formData.license_number}
+                      >
+                        {isSubmitting ? "Updating..." : "Update Driver"}
+                      </Button>
+                    </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Search and Filter */}
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
                 placeholder="Search drivers..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-10 text-sm sm:text-base"
               />
             </div>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-full sm:w-40">
                 <SelectValue placeholder="All status" />
               </SelectTrigger>
               <SelectContent>
@@ -357,51 +641,51 @@ export default function DriversScreen() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
           <Card>
-            <CardContent className="p-6">
+            <CardContent className="p-3 sm:p-4 lg:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Total</p>
-                  <p className="text-2xl font-semibold text-gray-900">{stats.total}</p>
+                  <p className="text-xs sm:text-sm text-gray-600">Total</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-900">{stats.total}</p>
                 </div>
-                <User className="h-8 w-8 text-gray-400" />
+                <User className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-gray-400" />
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
+            <CardContent className="p-3 sm:p-4 lg:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Active</p>
-                  <p className="text-2xl font-semibold text-green-600">{stats.active}</p>
+                  <p className="text-xs sm:text-sm text-gray-600">Active</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-semibold text-green-600">{stats.active}</p>
                 </div>
-                <Activity className="h-8 w-8 text-green-400" />
+                <Activity className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-green-400" />
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
+            <CardContent className="p-3 sm:p-4 lg:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">On Delivery</p>
-                  <p className="text-2xl font-semibold text-orange-600">{stats.busy}</p>
+                  <p className="text-xs sm:text-sm text-gray-600">On Delivery</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-semibold text-orange-600">{stats.busy}</p>
                 </div>
-                <Truck className="h-8 w-8 text-orange-400" />
+                <Truck className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-orange-400" />
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
+            <CardContent className="p-3 sm:p-4 lg:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Avg Rating</p>
-                  <p className="text-2xl font-semibold text-gray-900">{stats.avgRating}</p>
+                  <p className="text-xs sm:text-sm text-gray-600">Avg Rating</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-900">{stats.avgRating}</p>
                 </div>
-                <Star className="h-8 w-8 text-yellow-400" />
+                <Star className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-yellow-400" />
               </div>
             </CardContent>
           </Card>
@@ -429,7 +713,7 @@ export default function DriversScreen() {
 
         {/* Drivers Grid */}
         {!isLoading && !error && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
             {filteredDrivers.map((driver) => (
               <Card key={driver.id} className="hover:shadow-md transition-shadow">
                 <CardHeader className="pb-4">
@@ -507,11 +791,16 @@ export default function DriversScreen() {
 
                   {/* Actions */}
                   <div className="flex gap-2 pt-2">
-                    <Button size="sm" variant="outline" className="flex-1">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={() => handleEditDriver(driver)}
+                    >
                       <Edit className="h-4 w-4 mr-2" />
                       Edit
                     </Button>
-                    <Button size="sm" className="flex-1">
+                    <Button size="sm" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white">
                       <Phone className="h-4 w-4 mr-2" />
                       Call
                     </Button>
