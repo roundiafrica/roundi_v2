@@ -1,11 +1,16 @@
-import type { Metadata } from "next";
-import { GeistSans } from "geist/font/sans";
-import { GeistMono } from "geist/font/mono";
-import { Toaster } from "@/components/ui/toaster";
-import "./globals.css";
+import type { Metadata } from 'next'
+import localFont from 'next/font/local'
+import { Toaster } from "@/components/ui/toaster"
+import './globals.css'
 import AuthProvider from "./context/auth-context";
 
 import GoogleMapsProvider from "./context/maps-provider";
+
+const outfit = localFont({
+  src: '../assets/fonts/Outfit-VariableFont_wght.ttf',
+  variable: '--font-outfit',
+})
+
 
 export const metadata: Metadata = {
   title: "Roundi - Delivery Management Platform",
@@ -20,8 +25,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
-      <body className={GeistSans.className}>
+    <html lang="en" className={`${outfit.variable}`}>
+      <body className={outfit.className}>
         <AuthProvider>
           <GoogleMapsProvider>
             {children}

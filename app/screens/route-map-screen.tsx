@@ -270,7 +270,6 @@ export default function RouteMapScreen({
       (delivery.item?.toLowerCase() || "").includes(searchTerm.toLowerCase())
   );
 
-
   const getDeliveryProgress = (index: number) => {
     return Math.round(((index + 1) / filteredDeliveries.length) * 100);
   };

@@ -14,6 +14,8 @@ import {
   BarChart3,
   UserPlus,
   HelpCircle,
+  MapPin,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import FeatureTour, { useFeatureTour } from "@/components/feature-tour";
-import { supabase } from "@/lib/supabase";
+
 // Import all screen components
 import RoutesScreen from "../screens/routes-screen";
 import DeliveriesScreen from "../screens/deliveries-screen";
@@ -32,15 +34,18 @@ import AnalyticsScreen from "../screens/analytics-screen";
 import SettingsScreen from "../screens/settings-screen";
 import AssignDriversScreen from "../screens/assign-drivers-screen";
 import RouteMapScreen from "../screens/route-map-screen";
+import CollectionPointsScreen from "../screens/collection-points-screen";
 import UserProfile from "../components/user-profile";
 import { RequireAuth } from "@/components/require-auth";
 import { DriverService } from "@/lib/services/drivers";
 import { DeliveryService } from "@/lib/services/deliveries";
 import { RouteService } from "@/lib/services/routes";
+import { supabase } from "@/lib/supabase";
 
 export default function DashboardPage() {
   const [activeScreen, setActiveScreen] = useState("routes");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState<any>(null);
   const [routeDeliveries, setRouteDeliveries] = useState<any[]>([]);
   const [isFirstTime, setIsFirstTime] = useState(false);
@@ -48,6 +53,7 @@ export default function DashboardPage() {
     routes: 0,
     deliveries: 0,
     drivers: 0,
+    collectionPoints: 0,
   });
   const { showTour, hasCompletedTour, startTour, closeTour, completeTour } =
     useFeatureTour();
@@ -76,6 +82,13 @@ export default function DashboardPage() {
       label: "Drivers",
       count: sidebarCount.drivers,
     },
+    {
+      id: "collection-points",
+      icon: MapPin,
+      label: "Collection Points",
+      count: sidebarCount.collectionPoints,
+    },
+
     // { id: "optimize", icon: Navigation, label: "Optimize" },
     // { id: "schedule", icon: Calendar, label: "Schedule" },
     { id: "analytics", icon: BarChart3, label: "Analytics" },
@@ -119,8 +132,8 @@ export default function DashboardPage() {
       console.error("Logout error:", error.message);
       return;
     }
-    localStorage.removeItem("roundi-has-visited");
-    localStorage.removeItem("roundi-tour-completed");
+    // localStorage.removeItem("roundi-has-visited");
+    // localStorage.removeItem("roundi-tour-completed");
     window.location.href = "/";
   };
 
@@ -132,6 +145,11 @@ export default function DashboardPage() {
         return <DeliveriesScreen />;
       case "drivers":
         return <DriversScreen />;
+      case "collection-points":
+        return (
+          <CollectionPointsScreen onBack={() => setActiveScreen("routes")} />
+        );
+
       // case "optimize":
       //   return <OptimizeScreen />;
       // case "schedule":
@@ -210,13 +228,26 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Mobile Menu Overlay */}
+        {mobileMenuOpen && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+        )}
+
         {/* Left Sidebar */}
         <div
-          className={`bg-white border-r border-gray-200 transition-all duration-300 ${
-            sidebarCollapsed ? "w-16" : "w-80 overflow-y-auto"
-          } flex flex-col shadow-sm ${
-            isFirstTime && !hasCompletedTour ? "mt-16" : ""
-          }`}
+          className={`bg-white border-r border-gray-200 transition-all duration-300 flex flex-col shadow-sm
+        ${isFirstTime && !hasCompletedTour ? "mt-16" : ""}
+        lg:relative lg:flex ${sidebarCollapsed ? "lg:w-16" : "lg:w-80"}
+        fixed inset-y-0 left-0 z-50 w-80 transform transition-transform duration-300 ease-in-out
+        ${
+          mobileMenuOpen
+            ? "translate-x-0"
+            : "-translate-x-full lg:translate-x-0"
+        }
+        lg:transform-none`}
           id="sidebar"
         >
           {/* Header */}
@@ -228,13 +259,23 @@ export default function DashboardPage() {
                   <p className="text-sm text-gray-500">Delivery Management</p>
                 </div>
               )}
+              {/* Desktop collapse button */}
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                className="text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                className="hidden lg:flex text-gray-500 hover:text-gray-900 hover:bg-gray-50"
               >
                 <Menu className="h-5 w-5" />
+              </Button>
+              {/* Mobile close button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setMobileMenuOpen(false)}
+                className="lg:hidden text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+              >
+                <X className="h-5 w-5" />
               </Button>
             </div>
           </div>
@@ -246,7 +287,10 @@ export default function DashboardPage() {
                 <Button
                   key={item.id}
                   variant={activeScreen === item.id ? "secondary" : "ghost"}
-                  onClick={() => setActiveScreen(item.id)}
+                  onClick={() => {
+                    setActiveScreen(item.id);
+                    setMobileMenuOpen(false); // Close mobile menu when item is selected
+                  }}
                   className={`w-full justify-start ${
                     sidebarCollapsed ? "px-2" : "px-4"
                   } ${
@@ -326,7 +370,31 @@ export default function DashboardPage() {
         >
           {/* Top Bar */}
           <div className="bg-white border-b border-gray-200 p-4 shadow-sm">
-            <div className="flex items-end justify-end">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4 flex-1">
+                {/* Mobile Menu Button */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setMobileMenuOpen(true)}
+                  className="lg:hidden text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+                {/* Mobile Screen Title */}
+                <div className="lg:hidden">
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    {getScreenTitle()}
+                  </h2>
+                </div>
+                <div className="relative flex-1 max-w-md hidden sm:block">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    placeholder="Search..."
+                    className="pl-10 bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
               <div className="flex items-center space-x-3">
                 <Button
                   variant="ghost"
