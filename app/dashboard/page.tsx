@@ -174,12 +174,12 @@ export default function DashboardPage() {
         return <RoutesScreen onViewRouteMap={handleViewRouteMap} />;
     }
   };
-
+  console.log("these are details", selectedRoute, routeDeliveries);
   const getScreenTitle = () => {
     const screen = sidebarItems.find((item) => item.id === activeScreen);
     return screen ? screen.label : "Routes";
   };
-  console.log("selected route", selectedRoute);
+  
   return (
     <RequireAuth>
       <div className="h-screen bg-white flex overflow-hidden">
@@ -240,7 +240,7 @@ export default function DashboardPage() {
         <div
           className={`bg-white border-r border-gray-200 transition-all duration-300 flex flex-col shadow-sm
         ${isFirstTime && !hasCompletedTour ? "mt-16" : ""}
-        lg:relative lg:flex ${sidebarCollapsed ? "lg:w-16" : "lg:w-80"}
+        lg:relative lg:flex ${sidebarCollapsed ? "lg:w-16" : "lg:w-64"}
         fixed inset-y-0 left-0 z-50 w-80 transform transition-transform duration-300 ease-in-out
         ${
           mobileMenuOpen
@@ -387,13 +387,13 @@ export default function DashboardPage() {
                     {getScreenTitle()}
                   </h2>
                 </div>
-                <div className="relative flex-1 max-w-md hidden sm:block">
+                {/* <div className="relative flex-1 max-w-md hidden sm:block">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
                     placeholder="Search..."
                     className="pl-10 bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:ring-blue-500"
                   />
-                </div>
+                </div> */}
               </div>
               <div className="flex items-center space-x-3">
                 <Button

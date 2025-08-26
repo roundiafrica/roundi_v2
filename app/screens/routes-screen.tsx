@@ -427,7 +427,7 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
             delivery.latitude &&
             delivery.longitude
         );
-
+        console.log('deliveries', deliveries);
         const deliveryPromises = validDeliveries.map(
           async (delivery, index) => {
             const deliveryData = {

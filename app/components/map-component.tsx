@@ -601,10 +601,14 @@ export default function MapComponent({
   return (
     <GoogleMap
       mapContainerStyle={{ width: "100%", height: "100%" }}
-      center={{
-        lat: deliveries[0].coordinates[0],
-        lng: deliveries[0].coordinates[1],
-      }}
+      center={
+        deliveries?.[0]?.coordinates
+          ? {
+              lat: deliveries[0].coordinates[0],
+              lng: deliveries[0].coordinates[1],
+            }
+          : { lat: -1.2852, lng: 36.8122 }
+      }
       zoom={15}
       onLoad={(mapInstance) => setMap(mapInstance)}
       options={{

@@ -32,6 +32,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 
 type OnboardingStep = "auth" | "setup" | "complete";
 
@@ -94,12 +95,15 @@ export default function HomePage() {
         }
 
         const user = data.user;
-       
-        if (!user) throw new Error("User not returned from sign up");
+
+        if (!user) {
+          toast.error("Failed to create account! Please retry");
+        };
+        toast.success("User created successfully");
         setError(null);
-        setCurrentStep("setup");
+
         // For new users, redirect to comprehensive onboarding
-        window.location.href = "/onboarding/organization"
+        router.push("/onboarding/organization");
       } else {
         const { email, password } = authForm;
         if (!email || !password) {
@@ -210,7 +214,7 @@ export default function HomePage() {
             </Button>
           </Link>
         </div>
-        
+
         <div className="w-full max-w-6xl grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           {/* Left Side - Branding & Features */}
           <div className="space-y-6 lg:space-y-8 order-2 lg:order-1">
@@ -220,27 +224,39 @@ export default function HomePage() {
                   <Truck className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Roundi</h1>
-                  <p className="text-sm sm:text-base text-gray-600">Delivery Management Platform</p>
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                    Roundi
+                  </h1>
+                  <p className="text-sm sm:text-base text-gray-600">
+                    Delivery Management Platform
+                  </p>
                 </div>
               </div>
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-4 leading-tight">
                 Streamline Your Delivery Operations
               </h2>
               <p className="text-lg sm:text-xl text-gray-600 mb-6 lg:mb-8">
-                Join thousands of businesses using Roundi to optimize their delivery operations and delight customers.
+                Join thousands of businesses using Roundi to optimize their
+                delivery operations and delight customers.
               </p>
             </div>
 
             <div className="grid gap-4 sm:gap-6">
               {features.map((feature, index) => (
-                <div key={index} className="flex items-start space-x-3 sm:space-x-4 text-center sm:text-left">
+                <div
+                  key={index}
+                  className="flex items-start space-x-3 sm:space-x-4 text-center sm:text-left"
+                >
                   <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
                     <feature.icon className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 mb-1 text-sm sm:text-base">{feature.title}</h3>
-                    <p className="text-gray-600 text-xs sm:text-sm">{feature.description}</p>
+                    <h3 className="font-semibold text-gray-900 mb-1 text-sm sm:text-base">
+                      {feature.title}
+                    </h3>
+                    <p className="text-gray-600 text-xs sm:text-sm">
+                      {feature.description}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -263,7 +279,7 @@ export default function HomePage() {
           </div>
 
           {/* Right Side - Auth Form */}
-          <Card className="w-full max-w-md mx-auto bg-white shadow-xl border-0 order-1 lg:order-2">
+          <Card className="w-full max-w-md mx-auto bg-white shadow-xl border-0 order-2">
             <CardHeader className="text-center pb-2">
               <CardTitle className="text-2xl">
                 {authMode === "login" ? "Welcome back" : "Get started today"}
@@ -309,7 +325,7 @@ export default function HomePage() {
                     <div>
                       <div className="flex justify-between">
                         <Label htmlFor="password">Password</Label>
-                       
+
                         <p>
                           <Link
                             href="/forgot-password"
@@ -515,201 +531,201 @@ export default function HomePage() {
     );
   }
 
-  if (currentStep === "setup") {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-2xl bg-white shadow-xl border-0">
-          <CardHeader className="text-center">
-            <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Building2 className="w-8 h-8 text-white" />
-            </div>
-            <CardTitle className="text-3xl">Set up your organization</CardTitle>
-            <CardDescription className="text-lg">
-              Let's get your delivery operation configured in just a few steps
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSetupSubmit} className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="companyName">Company Name *</Label>
-                  <Input
-                    id="companyName"
-                    placeholder="Acme Delivery Co."
-                    value={setupForm.companyName}
-                    onChange={(e) =>
-                      setSetupForm({
-                        ...setupForm,
-                        companyName: e.target.value,
-                      })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="industry">Industry *</Label>
-                  <Input
-                    id="industry"
-                    placeholder="Food & Beverage"
-                    value={setupForm.industry}
-                    onChange={(e) =>
-                      setSetupForm({ ...setupForm, industry: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-              </div>
+  // if (currentStep === "setup") {
+  //   return (
+  //     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
+  //       <Card className="w-full max-w-2xl bg-white shadow-xl border-0">
+  //         <CardHeader className="text-center">
+  //           <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+  //             <Building2 className="w-8 h-8 text-white" />
+  //           </div>
+  //           <CardTitle className="text-3xl">Set up your organization</CardTitle>
+  //           <CardDescription className="text-lg">
+  //             Let's get your delivery operation configured in just a few steps
+  //           </CardDescription>
+  //         </CardHeader>
+  //         <CardContent>
+  //           <form onSubmit={handleSetupSubmit} className="space-y-6">
+  //             <div className="grid md:grid-cols-2 gap-4">
+  //               <div>
+  //                 <Label htmlFor="companyName">Company Name *</Label>
+  //                 <Input
+  //                   id="companyName"
+  //                   placeholder="Acme Delivery Co."
+  //                   value={setupForm.companyName}
+  //                   onChange={(e) =>
+  //                     setSetupForm({
+  //                       ...setupForm,
+  //                       companyName: e.target.value,
+  //                     })
+  //                   }
+  //                   required
+  //                 />
+  //               </div>
+  //               <div>
+  //                 <Label htmlFor="industry">Industry *</Label>
+  //                 <Input
+  //                   id="industry"
+  //                   placeholder="Food & Beverage"
+  //                   value={setupForm.industry}
+  //                   onChange={(e) =>
+  //                     setSetupForm({ ...setupForm, industry: e.target.value })
+  //                   }
+  //                   required
+  //                 />
+  //               </div>
+  //             </div>
 
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="teamSize">Email *</Label>
-                  <Input
-                    id="email"
-                    placeholder="10-50 employees"
-                    value={setupForm.email}
-                    onChange={(e) =>
-                      setSetupForm({ ...setupForm, email: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="phone">Phone Number *</Label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="phone"
-                      placeholder="+254 7XX XXX XXX"
-                      className="pl-10"
-                      value={setupForm.phone}
-                      onChange={(e) =>
-                        setSetupForm({ ...setupForm, phone: e.target.value })
-                      }
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="teamSize">Team Size</Label>
-                  <Input
-                    id="teamSize"
-                    placeholder="10-50 employees"
-                    value={setupForm.teamSize}
-                    onChange={(e) =>
-                      setSetupForm({ ...setupForm, teamSize: e.target.value })
-                    }
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="location">Primary Location *</Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="location"
-                    placeholder="Nairobi, Kenya"
-                    className="pl-10"
-                    value={setupForm.location}
-                    onChange={(e) =>
-                      setSetupForm({ ...setupForm, location: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-              </div>
+  //             <div className="grid md:grid-cols-2 gap-4">
+  //               <div>
+  //                 <Label htmlFor="teamSize">Email *</Label>
+  //                 <Input
+  //                   id="email"
+  //                   placeholder="10-50 employees"
+  //                   value={setupForm.email}
+  //                   onChange={(e) =>
+  //                     setSetupForm({ ...setupForm, email: e.target.value })
+  //                   }
+  //                 />
+  //               </div>
+  //               <div>
+  //                 <Label htmlFor="phone">Phone Number *</Label>
+  //                 <div className="relative">
+  //                   <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+  //                   <Input
+  //                     id="phone"
+  //                     placeholder="+254 7XX XXX XXX"
+  //                     className="pl-10"
+  //                     value={setupForm.phone}
+  //                     onChange={(e) =>
+  //                       setSetupForm({ ...setupForm, phone: e.target.value })
+  //                     }
+  //                     required
+  //                   />
+  //                 </div>
+  //               </div>
+  //             </div>
+  //             <div className="grid md:grid-cols-2 gap-4">
+  //               <div>
+  //                 <Label htmlFor="teamSize">Team Size</Label>
+  //                 <Input
+  //                   id="teamSize"
+  //                   placeholder="10-50 employees"
+  //                   value={setupForm.teamSize}
+  //                   onChange={(e) =>
+  //                     setSetupForm({ ...setupForm, teamSize: e.target.value })
+  //                   }
+  //                 />
+  //               </div>
+  //             </div>
+  //             <div>
+  //               <Label htmlFor="location">Primary Location *</Label>
+  //               <div className="relative">
+  //                 <MapPin className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+  //                 <Input
+  //                   id="location"
+  //                   placeholder="Nairobi, Kenya"
+  //                   className="pl-10"
+  //                   value={setupForm.location}
+  //                   onChange={(e) =>
+  //                     setSetupForm({ ...setupForm, location: e.target.value })
+  //                   }
+  //                   required
+  //                 />
+  //               </div>
+  //             </div>
 
-              <div>
-                <Label htmlFor="operatingHours">Operating Hours</Label>
-                <Input
-                  id="operatingHours"
-                  placeholder="8:00 AM - 6:00 PM"
-                  value={setupForm.operatingHours}
-                  onChange={(e) =>
-                    setSetupForm({
-                      ...setupForm,
-                      operatingHours: e.target.value,
-                    })
-                  }
-                />
-              </div>
-              {error && (
-                <div className="mb-4 text-red-600 text-sm">{error}</div>
-              )}
-              <Button
-                type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-lg py-6"
-                disabled={isLoading}
-              >
-                {isLoading ? "Setting up your account..." : "Complete Setup"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  //             <div>
+  //               <Label htmlFor="operatingHours">Operating Hours</Label>
+  //               <Input
+  //                 id="operatingHours"
+  //                 placeholder="8:00 AM - 6:00 PM"
+  //                 value={setupForm.operatingHours}
+  //                 onChange={(e) =>
+  //                   setSetupForm({
+  //                     ...setupForm,
+  //                     operatingHours: e.target.value,
+  //                   })
+  //                 }
+  //               />
+  //             </div>
+  //             {error && (
+  //               <div className="mb-4 text-red-600 text-sm">{error}</div>
+  //             )}
+  //             <Button
+  //               type="submit"
+  //               className="w-full bg-blue-600 hover:bg-blue-700 text-lg py-6"
+  //               disabled={isLoading}
+  //             >
+  //               {isLoading ? "Setting up your account..." : "Complete Setup"}
+  //             </Button>
+  //           </form>
+  //         </CardContent>
+  //       </Card>
+  //     </div>
+  //   );
+  // }
 
-  if (currentStep === "complete") {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-2xl bg-white shadow-xl border-0">
-          <CardContent className="text-center py-12">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CheckCircle className="w-10 h-10 text-green-600" />
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">
-              Welcome to Roundi! 🎉
-            </h1>
-            <p className="text-xl text-gray-600 mb-8">
-              Your account is ready. Let's start optimizing your delivery
-              operations.
-            </p>
+  // if (currentStep === "complete") {
+  //   return (
+  //     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
+  //       <Card className="w-full max-w-2xl bg-white shadow-xl border-0">
+  //         <CardContent className="text-center py-12">
+  //           <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+  //             <CheckCircle className="w-10 h-10 text-green-600" />
+  //           </div>
+  //           <h1 className="text-3xl font-bold text-gray-900 mb-4">
+  //             Welcome to Roundi! 🎉
+  //           </h1>
+  //           <p className="text-xl text-gray-600 mb-8">
+  //             Your account is ready. Let's start optimizing your delivery
+  //             operations.
+  //           </p>
 
-            <div className="grid md:grid-cols-2 gap-6 mb-8">
-              <div className="text-left p-4 bg-blue-50 rounded-lg">
-                <h3 className="font-semibold text-blue-900 mb-2">
-                  Next steps:
-                </h3>
-                <ul className="space-y-2 text-sm text-blue-700">
-                  <li>• Add your first delivery route</li>
-                  <li>• Invite and onboard drivers</li>
-                  <li>• Set up delivery zones</li>
-                  <li>• Configure notifications</li>
-                </ul>
-              </div>
-              <div className="text-left p-4 bg-green-50 rounded-lg">
-                <h3 className="font-semibold text-green-900 mb-2">
-                  Need help?
-                </h3>
-                <ul className="space-y-2 text-sm text-green-700">
-                  <li>• Check out our quick start guide</li>
-                  <li>• Watch tutorial videos</li>
-                  <li>• Contact our support team</li>
-                  <li>• Join our community forum</li>
-                </ul>
-              </div>
-            </div>
+  //           <div className="grid md:grid-cols-2 gap-6 mb-8">
+  //             <div className="text-left p-4 bg-blue-50 rounded-lg">
+  //               <h3 className="font-semibold text-blue-900 mb-2">
+  //                 Next steps:
+  //               </h3>
+  //               <ul className="space-y-2 text-sm text-blue-700">
+  //                 <li>• Add your first delivery route</li>
+  //                 <li>• Invite and onboard drivers</li>
+  //                 <li>• Set up delivery zones</li>
+  //                 <li>• Configure notifications</li>
+  //               </ul>
+  //             </div>
+  //             <div className="text-left p-4 bg-green-50 rounded-lg">
+  //               <h3 className="font-semibold text-green-900 mb-2">
+  //                 Need help?
+  //               </h3>
+  //               <ul className="space-y-2 text-sm text-green-700">
+  //                 <li>• Check out our quick start guide</li>
+  //                 <li>• Watch tutorial videos</li>
+  //                 <li>• Contact our support team</li>
+  //                 <li>• Join our community forum</li>
+  //               </ul>
+  //             </div>
+  //           </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button
-                onClick={handleComplete}
-                className="bg-blue-600 hover:bg-blue-700 text-lg px-8 py-6"
-              >
-                Enter Dashboard
-              </Button>
-              <Button
-                variant="outline"
-                className="text-lg px-8 py-6 border-gray-300"
-              >
-                Take a Tour
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  //           <div className="flex flex-col sm:flex-row gap-4 justify-center">
+  //             <Button
+  //               onClick={handleComplete}
+  //               className="bg-blue-600 hover:bg-blue-700 text-lg px-8 py-6"
+  //             >
+  //               Enter Dashboard
+  //             </Button>
+  //             <Button
+  //               variant="outline"
+  //               className="text-lg px-8 py-6 border-gray-300"
+  //             >
+  //               Take a Tour
+  //             </Button>
+  //           </div>
+  //         </CardContent>
+  //       </Card>
+  //     </div>
+  //   );
+  // }
 
   return null;
 }

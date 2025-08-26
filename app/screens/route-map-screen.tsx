@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Search, MapPin, Filter } from "lucide-react";
+import { Search, MapPin, Filter, Share2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -94,6 +94,7 @@ export default function RouteMapScreen({
   const [selectedDelivery, setSelectedDelivery] = useState<DeliveryData | null>(
     null
   );
+  console.log("these are details", deliveries, route);
   const [searchTerm, setSearchTerm] = useState("");
   const [isOptimizeDialogOpen, setIsOptimizeDialogOpen] = useState(false);
   const [optimizationResult, setOptimizationResult] = useState<any>(null);
@@ -274,6 +275,38 @@ export default function RouteMapScreen({
     return Math.round(((index + 1) / filteredDeliveries.length) * 100);
   };
 
+  function buildWhatsAppMessage(route: any, deliveries: any[]) {
+    const driverName = route.driver?.name || "Driver";
+    const start = route.start_location || "Not set";
+    const end = route.end_location || "Not set";
+
+    // Header
+    let message = `Hi ${driverName}, 👋\n\nHere are your deliveries for today:\n\n`;
+    message += `🚦 Starting point: ${start}\n🏁 End point: ${end}\n\n`;
+
+    // Deliveries list
+    deliveries.forEach((d, i) => {
+      message += `#${i + 1}. ${d.customer_name} - ${d.item}\n📍 ${
+        d.location
+      }\n📞 ${d.phone}\n🕒 Drop time: ${d.drop_time || "N/A"}\n\n`;
+    });
+
+    message += "✅ Please confirm once completed. Safe ride!";
+
+    // WhatsApp URL encode
+    return encodeURIComponent(message);
+  }
+
+  const handleShare = () => {
+    const msg = buildWhatsAppMessage(route, deliveries);
+    const phone = route.driver?.phone; // WhatsApp expects digits only
+    const url = `https://wa.me/${phone}?text=${msg}`;
+    window.open(url, "_blank");
+  };
+
+
+  
+
   return (
     <div className="h-full bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col">
       {/* Enhanced Header */}
@@ -347,14 +380,14 @@ export default function RouteMapScreen({
               </Badge>
             )}
             <Badge className="bg-blue-100 text-blue-800 border-blue-200 px-3 py-1">
-              <span className="hidden sm:inline">4 Active Routes</span>
-              <span className="sm:hidden">4 Routes</span>
+              <span className="hidden sm:inline">1 Active Routes</span>
+              <span className="sm:hidden">1 Routes</span>
             </Badge>
           </div>
         </div>
 
         {/* Enhanced Stats with Progress */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 grid-responsive">
+        {/* <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 grid-responsive">
           <Card className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow card-hover stats-card">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
@@ -436,7 +469,7 @@ export default function RouteMapScreen({
               <div className="text-xs text-slate-500">Awaiting delivery</div>
             </CardContent>
           </Card>
-        </div>
+        </div> */}
       </div>
 
       {/* Main Content */}
@@ -444,17 +477,25 @@ export default function RouteMapScreen({
         {/* Enhanced Left Sidebar - Deliveries List */}
         <div className="w-full lg:w-96 bg-white border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col shadow-sm h-full lg:h-auto max-h-96 lg:max-h-none">
           {/* Deliveries Header */}
-          <div className="p-4 lg:p-6 border-b border-slate-100 flex-shrink-0">
-            <div className="flex items-center justify-between mb-4">
+          <div className="p-2 lg:p-4 border-b border-slate-100 flex-shrink-0">
+            <div className="flex items-center justify-between mb-2">
               <h3 className="text-lg font-semibold text-slate-900">
                 Today's Deliveries
               </h3>
-              <Button
+              {/* <Button
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 text-slate-400 hover:text-slate-600"
               >
                 <Filter className="h-4 w-4" />
+              </Button> */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-slate-400 hover:text-slate-600"
+                onClick={handleShare}
+              >
+                <Share2 className="h-4 w-4" />
               </Button>
             </div>
             <div className="relative">
@@ -612,7 +653,7 @@ export default function RouteMapScreen({
           </div>
 
           {/* Enhanced Bottom Actions */}
-          <div className="p-4 lg:p-6 border-t border-slate-100 space-y-3 bg-slate-50 flex-shrink-0">
+          <div className="p-1 lg:p-3 border-t border-slate-100 space-y-3 bg-slate-50 flex-shrink-0">
             <Button
               className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-sm btn-gradient focus-enhanced"
               onClick={() => setIsOptimizeDialogOpen(true)}
