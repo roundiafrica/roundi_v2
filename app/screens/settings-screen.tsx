@@ -109,8 +109,6 @@ export default function SettingsScreen() {
   const driverInviteLink =
     "https://roundi.com/onboarding/driver?token=abc123xyz";
 
- 
-
   const updateUserProfile = async () => {
     const user = (await supabase.auth.getUser()).data.user;
     const { data: updateData, error: updateError } =
@@ -154,7 +152,7 @@ export default function SettingsScreen() {
 
   const handleSendInvite = () => {
     // TODO: Implement invite sending logic
-    
+
     setInviteDialogOpen(false);
     setInviteForm({ email: "", role: "driver", message: "" });
   };
@@ -555,14 +553,17 @@ export default function SettingsScreen() {
                 className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50"
               >
                 <Phone className="h-5 w-5 mb-1" />
-                Call: +254 712 345 678
+                Call: +254 722 235 314
               </Button>
               <Button
+                asChild
                 variant="outline"
                 className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50"
               >
-                <Mail className="h-5 w-5 mb-1" />
-                Email Support
+                <a href="mailto:support@roundi.africa">
+                  <Mail className="h-5 w-5 mb-1" />
+                  Email Support
+                </a>
               </Button>
             </div>
           </CardContent>

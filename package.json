@@ -75,6 +75,7 @@
     "@types/react": "^19",
     "@types/react-big-calendar": "^1.16.2",
     "@types/react-dom": "^19",
+    "eslint-config-next": "15.5.0",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"

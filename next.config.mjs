@@ -7,9 +7,12 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    unoptimized: true,
+    unoptimized: false,
   },
   transpilePackages: ["geist"],
-}
+  compiler: {
+    removeConsole: process.env.NODE_ENV === "production" ? true : false,
+  },
+};
 
-export default nextConfig
+export default nextConfig;

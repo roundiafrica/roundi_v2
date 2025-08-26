@@ -33,9 +33,6 @@ type CollectionPoint = {
   lastUpdated: string
 }
 
-interface CollectionPointsScreenProps {
-  onBack: () => void
-}
 
 // Mock data - in a real app, this would come from an API
 const mockCollectionPoints: CollectionPoint[] = [
@@ -106,7 +103,7 @@ const mockCollectionPoints: CollectionPoint[] = [
   }
 ]
 
-export default function CollectionPointsScreen({ onBack }: CollectionPointsScreenProps) {
+export default function CollectionPointsScreen() {
   const [collectionPoints, setCollectionPoints] = useState<CollectionPoint[]>(mockCollectionPoints)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedType, setSelectedType] = useState<string>("all")
@@ -262,14 +259,7 @@ export default function CollectionPointsScreen({ onBack }: CollectionPointsScree
       <div className="bg-white border-b border-slate-200 p-3 sm:p-4 lg:p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-4">
           <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onBack}
-              className="text-slate-500 hover:text-slate-900 hover:bg-slate-50 rounded-lg flex-shrink-0"
-            >
-              <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
-            </Button>
+         
             <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
               <div className="h-8 w-8 sm:h-10 sm:w-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
                 <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
