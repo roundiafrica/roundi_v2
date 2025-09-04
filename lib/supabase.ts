@@ -262,6 +262,46 @@ export interface Database {
           profile_completed?: boolean
         }
       }
+      api_keys: {
+        Row: {
+          id: string
+          user_id: string
+          organization_id: string
+          key_name: string
+          key_hash: string
+          key_prefix: string
+          platform: 'shopify' | 'woocommerce' | 'general'
+          permissions: string[]
+          status: 'active' | 'inactive' | 'revoked'
+          last_used_at: string | null
+          expires_at: string | null
+          usage_count: number
+          rate_limit_per_hour: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          organization_id: string
+          key_name: string
+          key_hash: string
+          key_prefix: string
+          platform: 'shopify' | 'woocommerce' | 'general'
+          permissions?: string[]
+          status?: 'active' | 'inactive' | 'revoked'
+          expires_at?: string | null
+          rate_limit_per_hour?: number
+        }
+        Update: {
+          key_name?: string
+          status?: 'active' | 'inactive' | 'revoked'
+          permissions?: string[]
+          expires_at?: string | null
+          rate_limit_per_hour?: number
+          last_used_at?: string | null
+          usage_count?: number
+        }
+      }
     }
     Views: {
       [_ in never]: never;

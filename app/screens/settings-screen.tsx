@@ -55,6 +55,8 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "../context/auth-context";
 import { industries } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import ApiKeysManager from "../components/api-keys-manager";
+import AuthDebug from "../components/auth-debug";
 
 export default function SettingsScreen() {
   const { profile, organization, loading, team } = useUserProfile();
@@ -523,6 +525,12 @@ export default function SettingsScreen() {
             </Button>
           </CardContent>
         </Card> */}
+
+        {/* Debug Authentication */}
+        <AuthDebug />
+
+        {/* API Keys & Integrations - Only show for organization owners */}
+        {profile?.role === "owner" && <ApiKeysManager />}
 
         {/* Help & Support */}
         <Card className="bg-white border border-gray-200">
