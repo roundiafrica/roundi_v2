@@ -38,7 +38,7 @@ type CollectionPoint = {
 const mockCollectionPoints: CollectionPoint[] = [
   {
     id: 1,
-    name: "Central Warehouse Nairobi",
+    name: "Central Warehouse Nairobi CBD, Kenya",
     address: "Industrial Area, Nairobi, Kenya",
     coordinates: [-1.3192, 36.8285],
     type: 'warehouse',
@@ -321,56 +321,56 @@ export default function CollectionPointsScreen() {
         {/* Stats Overview */}
         <div className="mb-6 sm:mb-8">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-            <Card className="bg-blue-50 border-blue-200">
+            <Card>
               <CardContent className="p-3 sm:p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs sm:text-sm font-medium text-blue-600">Total Points</p>
-                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-900">{collectionPoints.length}</p>
+                    <p className="text-xs sm:text-sm font-medium text-gray-600">Total Points</p>
+                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-black">{collectionPoints.length}</p>
                   </div>
-                  <MapPin className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-blue-600" />
+                  <MapPin className="h-6 w-6 sm:h-7 sm:w-7 lg:h-6 lg:w-6 text-blue-600" />
                 </div>
               </CardContent>
             </Card>
             
-            <Card className="bg-emerald-50 border-emerald-200">
+            <Card>
               <CardContent className="p-3 sm:p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs sm:text-sm font-medium text-emerald-600">Active</p>
-                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-emerald-900">
+                    <p className="text-xs sm:text-sm font-medium text-gray-600">Active</p>
+                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-black">
                       {collectionPoints.filter(p => p.status === 'active').length}
                     </p>
                   </div>
-                  <CheckCircle className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-emerald-600" />
+                  <CheckCircle className="h-6 w-6 sm:h-7 sm:w-7 lg:h-6 lg:w-6 text-emerald-600" />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-amber-50 border-amber-200">
+            <Card>
               <CardContent className="p-3 sm:p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs sm:text-sm font-medium text-amber-600">Maintenance</p>
-                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-amber-900">
+                    <p className="text-xs sm:text-sm font-medium text-gray-600">Maintenance</p>
+                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-black">
                       {collectionPoints.filter(p => p.status === 'maintenance').length}
                     </p>
                   </div>
-                  <AlertCircle className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-amber-600" />
+                  <AlertCircle className="h-6 w-6 sm:h-7 sm:w-7 lg:h-6 lg:w-6 text-amber-600" />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-purple-50 border-purple-200">
+            <Card>
               <CardContent className="p-3 sm:p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs sm:text-sm font-medium text-purple-600">Total Vehicles</p>
-                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-900">
+                    <p className="text-xs sm:text-sm font-medium text-gray-600">Total Vehicles</p>
+                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-black">
                       {collectionPoints.reduce((sum, p) => sum + p.assignedVehicles, 0)}
                     </p>
                   </div>
-                  <Car className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-purple-600" />
+                  <Car className="h-6 w-6 sm:h-7 sm:w-7 lg:h-7 lg:w-7 text-purple-600" />
                 </div>
               </CardContent>
             </Card>
@@ -399,21 +399,21 @@ export default function CollectionPointsScreen() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 sm:gap-6">
             {filteredPoints.map((point) => (
               <Card key={point.id} className="bg-white border-slate-200 shadow-sm hover:shadow-md transition-shadow">
                 <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center space-x-3 min-w-0 flex-1">
+                      <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
                         {getTypeIcon(point.type)}
                       </div>
-                      <div>
-                        <CardTitle className="text-lg font-semibold text-slate-900">{point.name}</CardTitle>
+                      <div className="min-w-0 flex-1">
+                        <CardTitle className="text-sm font-semibold text-slate-900 truncate" title={point.name}>{point.name}</CardTitle>
                         <p className="text-sm text-slate-500 capitalize">{point.type.replace('-', ' ')}</p>
                       </div>
                     </div>
-                    <Badge className={getStatusBadge(point.status)}>
+                    <Badge className={`${getStatusBadge(point.status)} flex-shrink-0`}>
                       {point.status}
                     </Badge>
                   </div>
