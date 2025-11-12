@@ -24,6 +24,7 @@ import {
   ChevronRight,
   Star,
   Upload,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -405,6 +406,45 @@ export default function DeliveriesScreen() {
     return `${hours.padStart(2, "0")}:${minutes}`;
   };
 
+  // Geocode address using server-side API endpoint
+  const geocodeAddress = async (
+    address: string,
+    countryCode: string = "ke"
+  ): Promise<[number, number] | null> => {
+    if (!address || address.trim().length === 0) {
+      return null;
+    }
+
+    try {
+      const params = new URLSearchParams({
+        address: address,
+        countryCode: countryCode,
+      });
+
+      const response = await fetch(`/api/geocode?${params.toString()}`);
+
+      if (!response.ok) {
+        console.warn(`Geocoding failed for address: ${address}`);
+        return null;
+      }
+
+      const data = await response.json();
+
+      if (data.lat != null && data.lng != null) {
+        const lat = parseFloat(data.lat.toString());
+        const lng = parseFloat(data.lng.toString());
+        if (!isNaN(lat) && !isNaN(lng)) {
+          return [lng, lat]; // Return as [longitude, latitude] for PostGIS
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error(`Error geocoding address "${address}":`, error);
+      return null;
+    }
+  };
+
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -442,8 +482,6 @@ export default function DeliveriesScreen() {
       const requiredHeaders = [
         "customer_name",
         "location",
-        "lat",
-        "lng",
         "item",
         "phone",
         "drop_time",
@@ -471,48 +509,97 @@ export default function DeliveriesScreen() {
       }
 
       const newDeliveries = [];
+      const skippedRows: number[] = [];
       const totalRows = lines.length - 1;
       setImportProgress((prev) => ({ ...prev, total: totalRows }));
+
       for (let i = 1; i < lines.length; i++) {
         const values = parseCSVLine(lines[i]);
 
-        const lat = Number.parseFloat(values[headers.indexOf("lat")]);
-        const lng = Number.parseFloat(values[headers.indexOf("lng")]);
+        const customerName = values[headers.indexOf("customer_name")] || "";
+        const location = values[headers.indexOf("location")] || "";
+        const item = values[headers.indexOf("item")] || "";
+        const phone = values[headers.indexOf("phone")] || "";
+        const dropTime = values[headers.indexOf("drop_time")] || "";
 
-        if (isNaN(lat) || isNaN(lng)) {
-          console.warn(`Invalid coordinates at row ${i + 1}`);
+        // Validate required fields
+        if (!customerName || !location || !item || !phone || !dropTime) {
+          console.warn(`Missing required fields at row ${i + 1}`);
+          skippedRows.push(i + 1);
+          setImportProgress((prev) => ({
+            ...prev,
+            skipped: prev.skipped + 1,
+          }));
+          continue;
+        }
+
+        // Geocode the address
+        const coordinates = await geocodeAddress(location, "ke");
+
+        if (!coordinates) {
+          console.warn(
+            `Failed to geocode address "${location}" at row ${i + 1}`
+          );
+          skippedRows.push(i + 1);
+          setImportProgress((prev) => ({
+            ...prev,
+            skipped: prev.skipped + 1,
+          }));
           continue;
         }
 
         const delivery = {
-          customer_name: values[headers.indexOf("customer_name")] || "",
-          location: values[headers.indexOf("location")] || "",
-          coordinates: [lng, lat] as [number, number],
-          item: values[headers.indexOf("item")],
-          estimated_value: values[headers.indexOf("estimated_value")] || null,
-          weight: values[headers.indexOf("weight")] || null,
-          phone: values[headers.indexOf("phone")],
-          drop_time: values[headers.indexOf("drop_time")],
+          customer_name: customerName,
+          location: location,
+          coordinates: coordinates as [number, number],
+          item: item,
+          estimated_value:
+            headers.includes("estimated_value") &&
+            values[headers.indexOf("estimated_value")]
+              ? values[headers.indexOf("estimated_value")]
+              : null,
+          weight:
+            headers.includes("weight") && values[headers.indexOf("weight")]
+              ? values[headers.indexOf("weight")]
+              : null,
+          phone: phone,
+          drop_time: dropTime,
           status: "pending",
         };
 
-        newDeliveries.push({
-          ...delivery,
-        });
-        setImportProgress((prev) => ({
-          ...prev,
-          completed: prev.completed + 1,
-        }));
-        await DeliveryService.createDelivery(delivery);
+        try {
+          await DeliveryService.createDelivery(delivery);
+          newDeliveries.push({
+            ...delivery,
+          });
+          setImportProgress((prev) => ({
+            ...prev,
+            completed: prev.completed + 1,
+          }));
+        } catch (error) {
+          console.error(`Failed to create delivery at row ${i + 1}:`, error);
+          skippedRows.push(i + 1);
+          setImportProgress((prev) => ({
+            ...prev,
+            skipped: prev.skipped + 1,
+          }));
+        }
+
+        // Add a small delay to respect Nominatim rate limits (1 request per second)
+        if (i < lines.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
       }
 
       toast({
-        title: "Import successful",
+        title: "Import completed",
         description: `Successfully imported ${
           newDeliveries.length
         } deliveries.${
-          importProgress.skipped > 0
-            ? ` ${importProgress.skipped} rows were skipped.`
+          skippedRows.length > 0
+            ? ` ${skippedRows.length} row(s) were skipped (rows: ${skippedRows.slice(0, 5).join(", ")}${
+                skippedRows.length > 5 ? "..." : ""
+              }).`
             : ""
         }`,
       });
@@ -1069,6 +1156,25 @@ export default function DeliveriesScreen() {
                             disabled={isUploading}
                           />
                         </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const link = document.createElement("a");
+                              link.href = "/sample-deliveries.csv";
+                              link.download = "sample-deliveries.csv";
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                            }}
+                            className="flex items-center gap-2"
+                          >
+                            <FileText className="h-4 w-4" />
+                            Download Sample CSV
+                          </Button>
+                        </div>
                         <div className="text-sm text-gray-600 dark:text-gray-400">
                           <p className="font-medium mb-2">
                             Required CSV columns:
@@ -1076,14 +1182,16 @@ export default function DeliveriesScreen() {
                           <ul className="list-disc list-inside space-y-1">
                             <li>customer_name</li>
                             <li>location</li>
-                            <li>lat (latitude)</li>
-                            <li>lng (longitude)</li>
                             <li>item</li>
                             <li>phone</li>
                             <li>drop_time</li>
                           </ul>
                           <p className="mt-2">
                             Optional columns: estimated_value, weight
+                          </p>
+                          <p className="mt-2 text-xs text-gray-500">
+                            Note: Addresses will be automatically geocoded to get
+                            coordinates. No latitude/longitude columns needed.
                           </p>
                         </div>
                       </>
