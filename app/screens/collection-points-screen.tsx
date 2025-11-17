@@ -756,7 +756,7 @@ export default function CollectionPointsScreen() {
                   type="number"
                   step="any"
                   value={formik.values.latitude}
-                  placeholder="-1.2921"
+                  placeholder="Sample latitude -1.2921"
                   className="border-slate-200 bg-slate-50 text-slate-600"
                   readOnly
                 />
@@ -770,7 +770,7 @@ export default function CollectionPointsScreen() {
                   type="number"
                   step="any"
                   value={formik.values.longitude}
-                  placeholder="36.8219"
+                  placeholder="Sample longitude 36.8219"
                   className="border-slate-200 bg-slate-50 text-slate-600"
                   readOnly
                 />
