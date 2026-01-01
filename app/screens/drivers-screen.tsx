@@ -60,7 +60,6 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { DriverService } from "@/lib/services/drivers";
 import { toast } from "@/hooks/use-toast";
-import { validateKenyanPhone } from "@/lib/utils";
 
 // Transform Supabase driver data to UI format
 const transformDriverForUI = (driver: any) => {
@@ -213,11 +212,8 @@ export default function DriversScreen() {
 
     if (!formData.phone.trim()) {
       errors.phone = "Phone number is required";
-    } else {
-      const phoneValidation = validateKenyanPhone(formData.phone.trim());
-      if (!phoneValidation.valid) {
-        errors.phone = phoneValidation.error || "Invalid phone number";
-      }
+    } else if (!/^\+?[\d\s-]{10,}$/.test(formData.phone.trim())) {
+      errors.phone = "Please enter a valid phone number";
     }
 
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {

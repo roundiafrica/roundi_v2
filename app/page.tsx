@@ -34,7 +34,6 @@ import { AuthService } from "@/lib/services/auth";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { validateKenyanPhone } from "@/lib/utils";
 
 
 type OnboardingStep = "auth" | "setup" | "complete";

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { validateKenyanPhone } from '@/lib/utils'
 
 /**
  * POST /api/auth/signup
@@ -36,19 +35,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate phone number if provided
-    let normalizedPhone = null
-    if (phone) {
-      const phoneValidation = validateKenyanPhone(phone)
-      if (!phoneValidation.valid) {
-        return NextResponse.json(
-          { error: phoneValidation.error || 'Invalid phone number format' },
-          { status: 400 }
-        )
-      }
-      normalizedPhone = phoneValidation.normalized
-    }
-
     // Create server-side Supabase client with anon key (credentials handled server-side)
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
@@ -68,22 +54,6 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Check if phone number is already in use
-    if (normalizedPhone) {
-      const { data: existingPhoneUsers } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('phone', normalizedPhone)
-        .limit(1)
-
-      if (existingPhoneUsers && existingPhoneUsers.length > 0) {
-        return NextResponse.json(
-          { error: 'This phone number is already registered' },
-          { status: 400 }
-        )
-      }
-    }
-
     // Sign up user - request is handled server-side, not exposed in client
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -91,7 +61,7 @@ export async function POST(request: NextRequest) {
       options: {
         data: {
           full_name,
-          phone: normalizedPhone || null,
+          phone: phone || null,
         },
       },
     })
