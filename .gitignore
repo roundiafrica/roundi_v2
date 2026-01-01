@@ -34,3 +34,4 @@ echo "data_backup*.sql" >> .gitignore
 *.sql
 backup*.sql
 data_backup*.sql
+supabase/.temp/
