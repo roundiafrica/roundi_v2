@@ -105,7 +105,7 @@ const transformDriverForUI = (driver: any) => {
     location: getLocationFromVehicle(driver.vehicle_type),
     vehicle: `${driver.vehicle_type} - ${driver.license_number}`,
     rating: 4.9,
-    totalDeliveries: driver.deliveries[0]?.count || 0,
+    totalDeliveries: driver.deliveries?.[0]?.count || 0,
     completedToday: driver.status === "active" ? 1 : 0,
     joinDate: formatDate(driver.created_at),
     avatar: driver.avatar || getInitials(driver.name),

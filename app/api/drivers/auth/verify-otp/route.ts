@@ -2,12 +2,12 @@
  * POST /api/drivers/auth/verify-otp
  * 
  * Verifies OTP code and completes driver authentication
- * - Verifies OTP with Supabase
+ * - Verifies OTP with database
  * - Checks user has 'driver' role
  * - Links driver record to auth user
  * - Updates phone_verified_at on first verification
  * - Activates driver on first login (pending_activation -> active)
- * - Returns session and driver info
+ * - Creates and returns session
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -20,12 +20,8 @@ import {
   type VerifyOtpResponse,
   type OtpErrorResponse,
 } from '@/lib/otp-types';
-import {
-  completePhoneVerification,
-  linkDriverToAuthUser,
-  markPhoneAsVerified,
-} from '@/lib/otp-driver-auth';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 // Dummy hash for timing attack mitigation (hash for '000000')
 const DUMMY_HASH = '$2b$10$zQeY5H0H0xDqK2y6Gg3yMeqXfV9f8hG1lW7mGq5N9fQ0eV8r3X9Qe';
@@ -74,6 +70,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
+    console.log('[verify-otp] Verifying OTP for phone:', phone);
+
     // Use service-role supabase for DB ops
     const adminSupabase = await getSupabaseServer();
 
@@ -111,7 +109,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Cast verification to any to avoid strict DB typings for this table in this handler
+    // Cast verification to any to avoid strict DB typings
     const verificationAny: any = verification;
 
     const attempts = verificationAny.attempts ?? 0;
@@ -131,7 +129,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const isValid = await bcrypt.compare(otp, verificationAny.otp_hash);
 
     if (!isValid) {
-      // increment attempts
+      console.log('[verify-otp] Invalid OTP provided');
+      // Increment attempts
       const { error: updErr } = await (adminSupabase as any)
         .from('otp_verifications')
         .update({ attempts: (attempts || 0) + 1 })
@@ -148,8 +147,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
+    console.log('[verify-otp] OTP verified successfully');
+
     // Valid OTP - delete verification record (one-time use)
-    const { error: delErr } = await (adminSupabase as any).from('otp_verifications').delete().eq('id', verificationAny.id);
+    const { error: delErr } = await (adminSupabase as any)
+      .from('otp_verifications')
+      .delete()
+      .eq('id', verificationAny.id);
     if (delErr) console.error('[verify-otp] Failed to delete verification record:', delErr);
 
     // Get driver record using adminSupabase (service-role)
@@ -180,33 +184,63 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Use a typed any for driver to avoid TS issues with generated types
+    console.log('[verify-otp] Driver found:', driver.id);
+
+    // Use typed any for driver
     const driverAny: any = driver;
 
     const isFirstLogin = !driverAny.user_id;
     const isFirstPhoneVerification = !driverAny.phone_verified_at;
 
-    // Link driver to auth user and mark verified
-    // Expect client to have exchanged OTP for session via Supabase client-side on verify
-    // If using server-side session creation, create session using admin client
-
     // Try to find auth user by phone
-    const { data: authUsers, error: listErr } = await adminSupabase.auth.admin.listUsers();
-    if (listErr) console.error('[verify-otp] Error listing auth users:', listErr);
+    // Try to find auth user by phone OR email
+const { data: authUsers, error: listErr } = await adminSupabase.auth.admin.listUsers();
+if (listErr) console.error('[verify-otp] Error listing auth users:', listErr);
 
-    const authUser = (authUsers?.users || []).find((u: any) => u.phone === phone);
+const driverEmail = `${phone.replace('+', '')}@driver.internal`;
 
+// Search by both phone and email
+const authUser = (authUsers?.users || []).find((u: any) => 
+  u.phone === phone || u.email === driverEmail
+);
+
+console.log('[verify-otp] Auth user search:', {
+  searchingForPhone: phone,
+  searchingForEmail: driverEmail,
+  foundUser: !!authUser,
+  userId: authUser?.id,
+});
+
+    // If no auth user found, create one
     if (!authUser) {
-      console.error('[verify-otp] No auth user found for phone:', phone);
-      // Return success but without session
-      const response: VerifyOtpResponse = {
-        success: true,
-        message: 'OTP verified, no session created',
-        session: null,
-        driver: driverAny,
-        isFirstLogin,
-      };
-      return NextResponse.json(response, { status: 200 });
+      console.log('[verify-otp] No auth user found, creating one...');
+      
+      const driverEmail = `${phone.replace('+', '')}@driver.internal`;
+      
+      const { data: newAuthUserData, error: createAuthError } = await adminSupabase.auth.admin.createUser({
+        phone: phone,
+        email: driverEmail,
+        email_confirm: true,
+        phone_confirm: true, // Already verified via OTP
+        user_metadata: {
+          role: 'driver',
+          full_name: driverAny.name,
+        },
+      });
+
+      if (createAuthError) {
+        console.error('[verify-otp] Failed to create auth user:', createAuthError);
+        return NextResponse.json(
+          {
+            error: 'Failed to create authentication user',
+            code: OtpErrorCode.SUPABASE_ERROR,
+          } as OtpErrorResponse,
+          { status: 500 }
+        );
+      }
+
+      authUser = newAuthUserData.user;
+      console.log('[verify-otp] Auth user created:', authUser.id);
     }
 
     // Link driver to auth user + update phone_verified_at and status
@@ -232,43 +266,65 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Create a session for the auth user using admin client
+    console.log('[verify-otp] Driver updated successfully');
+
+    // Create session using temporary password method
     let session = null;
     try {
-      // Cast admin client to any to access createSession if available on runtime
-      const adminAuthAny: any = adminSupabase.auth?.admin;
-      if (adminAuthAny && typeof adminAuthAny.createSession === 'function') {
-        const { data: sessionData, error: sessionError } = await adminAuthAny.createSession({
-          user_id: authUser.id,
-        });
+      console.log('[verify-otp] Creating session...');
+      
+      // Generate temporary password
+      const tempPassword = crypto.randomBytes(32).toString('hex');
+      
+      // Get/create email for this user
+      const driverEmail = `${phone.replace('+', '')}@driver.internal`;
+      
+      // Update auth user with temporary password and email
+      const { error: updateAuthError } = await adminSupabase.auth.admin.updateUserById(
+        authUser.id,
+        {
+          password: tempPassword,
+          email: driverEmail,
+          email_confirm: true,
+        }
+      );
 
-        if (sessionError) {
-          console.error('[verify-otp] Failed to create session:', sessionError);
-        } else if (sessionData?.session) {
-          // Use the full session object returned by Supabase
-          session = sessionData.session as any;
-        }
-      } else {
-        // Fallback: try calling createSession directly and ignore TS if available at runtime
-        try {
-          const { data: sessionData, error: sessionError } = await (adminSupabase.auth as any).createSession?.({ user_id: authUser.id });
-          if (sessionError) console.error('[verify-otp] Failed to create session (fallback):', sessionError);
-          else if (sessionData?.session) session = sessionData.session as any;
-        } catch (err) {
-          // no-op
-        }
+      if (updateAuthError) {
+        console.error('[verify-otp] Failed to update auth user:', updateAuthError);
+        throw updateAuthError;
+      }
+
+      console.log('[verify-otp] Auth user updated with temp password');
+
+      // Sign in with email and temporary password to get session
+      const { data: signInData, error: signInError } = await adminSupabase.auth.signInWithPassword({
+        email: driverEmail,
+        password: tempPassword,
+      });
+
+      if (signInError) {
+        console.error('[verify-otp] Failed to sign in:', signInError);
+        throw signInError;
+      }
+
+      if (signInData?.session) {
+        session = signInData.session;
+        console.log('[verify-otp] Session created successfully');
       }
     } catch (err) {
       console.error('[verify-otp] Error creating session:', err);
+      // Don't fail the entire request - user is authenticated, just no session
     }
 
     const response: VerifyOtpResponse = {
       success: true,
-      message: session ? 'OTP verified successfully' : 'Authentication successful',
+      message: session ? 'OTP verified successfully' : 'OTP verified, session creation failed',
       session: session as any,
       driver: updatedDriver,
       isFirstLogin,
     };
+
+    console.log('[verify-otp] Returning response with session:', !!session);
 
     return NextResponse.json(response, { status: 200 });
   } catch (error) {

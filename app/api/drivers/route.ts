@@ -47,6 +47,7 @@ async function checkPhoneUniqueness(
 }
 
 // Create auth user and driver record with proper transaction handling
+// Create auth user and driver record with proper transaction handling
 async function createDriverWithAuth(
   adminClient: Awaited<ReturnType<typeof getSupabaseServer>>,
   driverData: {
@@ -60,12 +61,17 @@ async function createDriverWithAuth(
     org_id: number
   }
 ): Promise<{ success: boolean; data?: any; error?: string; authUserId?: string }> {
-  // Step 1: Create auth user
-  let authUser: any = null
+  // Step 1: Create auth user with email
+  let authUser: any = null;
   try {
+    // Create consistent email format for phone-based auth
+    const driverEmail = `${driverData.phone.replace('+', '')}@driver.internal`;
+
     const { data, error } = await adminClient.auth.admin.createUser({
       phone: driverData.phone,
-      phone_confirm: false,
+      email: driverEmail, // ← ADDED: Consistent email format
+      email_confirm: true, // ← ADDED: Pre-confirmed, no verification email
+      phone_confirm: false, // Driver will verify via OTP
       user_metadata: {
         role: 'driver',
         full_name: driverData.name,
@@ -86,6 +92,7 @@ async function createDriverWithAuth(
     }
 
     authUser = data.user
+    console.log('Auth user created with email:', driverEmail)
   } catch (err: any) {
     console.error('Unexpected error creating auth user:', err)
     return { success: false, error: `Unexpected error during authentication user creation: ${err.message}` }
@@ -159,11 +166,20 @@ async function createDriverWithAuth(
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createAuthenticatedClient(request.headers.get('authorization'))
+    const supabase = createAuthenticatedClient(
+      request.headers.get('authorization')
+    )
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
     if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized - Please log in' }, { status: 401 })
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
     }
 
     const { data: membership, error: membershipError } = await supabase
@@ -172,35 +188,35 @@ export async function GET(request: NextRequest) {
       .eq('user_id', user.id)
       .maybeSingle()
 
-    if (membershipError) {
-      console.error('Error fetching membership:', membershipError)
-      return NextResponse.json({ error: 'Error fetching organization membership' }, { status: 500 })
-    }
-
-    if (!membership) {
-      return NextResponse.json({ error: 'No organization found for this user' }, { status: 403 })
+    if (membershipError || !membership) {
+      return NextResponse.json(
+        { error: 'No organization found for user' },
+        { status: 403 }
+      )
     }
 
     const { data, error } = await supabase
       .from('drivers')
-      .select(`
-        *,
-        deliveries:deliveries(count)
-      `)
+      .select('*')
       .eq('org_id', membership.organization_id)
-      .order('name')
+      .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Error fetching drivers:', error)
-      return NextResponse.json({ error: 'Failed to fetch drivers', details: error.message }, { status: 500 })
+      return NextResponse.json(
+        { error: 'Failed to fetch drivers', details: error.message },
+        { status: 500 }
+      )
     }
 
-    return NextResponse.json(data || [])
-  } catch (error: any) {
-    console.error('Unexpected error in GET /api/drivers:', error)
-    return NextResponse.json({ error: 'Internal server error', details: error.message }, { status: 500 })
+    return NextResponse.json(data, { status: 200 })
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: 'Internal server error', details: err.message },
+      { status: 500 }
+    )
   }
 }
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -283,5 +299,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error', details: error.message }, { status: 500 })
   }
 }
+
+
 
 
