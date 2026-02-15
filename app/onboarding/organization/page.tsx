@@ -24,11 +24,10 @@ import {
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
 import OperatingHoursSelector from "@/app/components/operating-picker";
-import { Router } from "express";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 import { RequireAuth } from "@/components/require-auth";
 import { industries } from "@/lib/utils";
 
@@ -56,7 +55,7 @@ interface OrganizationForm {
 
   // Operations
   primaryDeliveryArea: string;
-  deliveryChallenge: string[];
+  deliveryChallenge: string;
   desiredFeatures: string;
 
   // Additional Info
@@ -84,7 +83,7 @@ function OrganizationSetup() {
     yearsInBusiness: "",
     industry: "",
     primaryDeliveryArea: "",
-    deliveryChallenge: [],
+    deliveryChallenge: "",
     desiredFeatures: "",
     termsAccepted: false,
     operatingHours: "",
@@ -174,72 +173,68 @@ function OrganizationSetup() {
 
     setIsLoading(true);
     try {
-      // Create business profile record in Supabase
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      // Get the JWT token from Supabase session
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
 
-      if (userError || !user) {
-        console.error(userError?.message || "User not authenticated");
-        throw userError;
+      if (!token) {
+        toast({
+          title: 'Authentication Error',
+          description: 'You must be logged in to complete onboarding.',
+        })
+        return
       }
 
-      if (userError || !user) throw new Error("User not authenticated");
-
-      const { error: orgError } = await supabase.from("organization").insert({
-        company_name: orgForm.organizationName,
-        industry: orgForm.industry,
-        company_email: orgForm.contactEmail,
-        company_phone: orgForm.contactPhone,
-        headquarters: orgForm.address,
-        operating_hours: orgForm.operatingHours,
-        operating_days: orgForm.operatingDays,
-        accepted_terms: orgForm.termsAccepted,
-        company_website: orgForm.website,
-        user: user.id,
-      });
-
-      if (orgError) {
-        console.error(orgError.message);
-        throw orgError;
-      }
-
-      const { data, error } = await supabase.from("business_profiles").insert([
-        {
-          orders_per_day: orgForm.ordersPerDay,
-          team_size: orgForm.teamSize,
-          drivers_count: orgForm.driversCount,
-          years_in_business: orgForm.yearsInBusiness,
-          primary_delivery_area: orgForm.primaryDeliveryArea,
-          delivery_challenge: orgForm.deliveryChallenge.join(", "),
-          features_wishlist: orgForm.desiredFeatures,
-          user_id: user.id,
+      const res = await fetch('/api/onboarding/organization', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
-      ]);
+        body: JSON.stringify({
+          organizationName: orgForm.organizationName,
+          contactEmail: orgForm.contactEmail,
+          contactPhone: orgForm.contactPhone,
+          address: orgForm.address,
+          website: orgForm.website,
+          ordersPerDay: orgForm.ordersPerDay,
+          teamSize: orgForm.teamSize,
+          driversCount: orgForm.driversCount,
+          yearsInBusiness: orgForm.yearsInBusiness,
+          industry: orgForm.industry,
+          operatingHours: orgForm.operatingHours,
+          operatingDays: orgForm.operatingDays,
+          primaryDeliveryArea: orgForm.primaryDeliveryArea,
+          deliveryChallenge: orgForm.deliveryChallenge,
+          desiredFeatures: orgForm.desiredFeatures,
+          termsAccepted: orgForm.termsAccepted,
+        }),
+      })
 
-      if (error) {
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
         toast({
-          title: "Application error",
-          description:
-            "Failed to setup your organization. Contact us for help!",
-        });
-      } else {
-        toast({
-          title: "Success!",
-          description: "Your organization has been registered successfully.",
-        });
+          title: 'Application error',
+          description: data.error || 'Failed to setup your organization. Contact us for help!',
+        })
+        throw new Error(data.error || 'Onboarding failed')
       }
 
-      setCurrentStep("complete");
-    } catch (error) {
-      console.error("Submission error:", error);
       toast({
-        title: "Application Error",
-        description: "Error setting up your organization. Contact us for help!",
-      });
+        title: 'Success!',
+        description: 'Your organization has been registered successfully.',
+      })
+
+      setCurrentStep('complete')
+    } catch (error) {
+      console.error('Submission error:', error)
+      toast({
+        title: 'Application Error',
+        description: 'Error setting up your organization. Contact us for help!',
+      })
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
   };
 
@@ -249,7 +244,7 @@ function OrganizationSetup() {
         <Card className="w-full max-w-2xl bg-white shadow-xl border-0">
           <CardContent className="text-center py-12">
             <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Building className="w-10 h-10 text-blue-600" />
+              <Building className="w-10 h-10 text-[#C8E298]" />
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-4">
               Welcome to Roundi! 🚀
@@ -277,7 +272,7 @@ function OrganizationSetup() {
                 <p className="text-sm text-purple-700">Delivery preferences</p>
               </div>
               <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <CheckCircle className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+                <CheckCircle className="w-8 h-8 text-[#C8E298] mx-auto mb-2" />
                 <h3 className="font-semibold text-blue-900 mb-1">Review</h3>
                 <p className="text-sm text-blue-700">Verify & submit</p>
               </div>
@@ -285,7 +280,7 @@ function OrganizationSetup() {
 
             <Button
               onClick={handleNext}
-              className="bg-blue-600 hover:bg-blue-700 text-lg px-8 py-6"
+              className="bg-[#C8E298] hover:bg-[#274690] text-lg px-8 py-6"
             >
               Start Setup
             </Button>
@@ -337,7 +332,7 @@ function OrganizationSetup() {
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
-                className="bg-blue-600 hover:bg-blue-700 text-lg px-8 py-6"
+                className="bg-[#C8E298] hover:bg-[#274690] text-lg px-8 py-6"
                 onClick={() => router.push("/dashboard")}
               >
                 Continue to Dashboard
@@ -376,7 +371,7 @@ function OrganizationSetup() {
                 key={step.id}
                 className={`text-xs ${
                   index <= getCurrentStepIndex()
-                    ? "text-blue-600"
+                    ? "text-[#C8E298]"
                     : "text-gray-400"
                 }`}
               >
@@ -763,53 +758,38 @@ function OrganizationSetup() {
                   </div>
 
                   <div>
-                    <Label>Biggest delivery challenge</Label>
+                    <Label htmlFor="deliveryChallenge">Biggest delivery challenge *</Label>
                     <div className="grid grid-cols-2 gap-2 mt-2">
                       {[
-                        { value: "Late deliveries", label: "Late deliveries" },
-                        {
-                          value: "High delivery costs",
-                          label: "High delivery costs",
-                        },
-                        {
-                          value: "Unreliable drivers/riders",
-                          label: "Unreliable drivers/riders",
-                        },
-                        {
-                          value: "Poor route planning",
-                          label: "Poor route planning",
-                        },
-                        {
-                          value: "Tracking & visibility issues",
-                          label: "Tracking & visibility issues",
-                        },
-                        { value: "Other", label: "Other" },
+                        "Late deliveries",
+                        "High delivery costs",
+                        "Unreliable drivers/riders",
+                        "Poor route planning",
+                        "Tracking & visibility issues",
+                        "Other",
                       ].map((option) => (
                         <label
-                          key={option.value}
+                          key={option}
                           className={`flex items-center space-x-2 p-3 border rounded cursor-pointer hover:bg-gray-50 ${
-                            orgForm.deliveryChallenge.includes(option.value)
+                            orgForm.deliveryChallenge === option
                               ? "border-blue-500 bg-blue-50"
                               : ""
                           }`}
                         >
                           <input
-                            type="checkbox"
+                            type="radio"
                             name="deliveryChallenge"
-                            value={option.value}
-                            checked={orgForm.deliveryChallenge.includes(option.value)}
-                            onChange={(e) => {
-                              const { value, checked } = e.target;
+                            value={option}
+                            checked={orgForm.deliveryChallenge === option}
+                            onChange={(e) =>
                               setOrgForm({
                                 ...orgForm,
-                                deliveryChallenge: checked
-                                  ? [...orgForm.deliveryChallenge, value]
-                                  : orgForm.deliveryChallenge.filter((item) => item !== value)
-                              });
-                            }}
+                                deliveryChallenge: e.target.value,
+                              })
+                            }
                             className="sr-only"
                           />
-                          <span className="text-sm">{option.label}</span>
+                          <span className="text-sm">{option}</span>
                         </label>
                       ))}
                     </div>
@@ -908,9 +888,9 @@ function OrganizationSetup() {
                         {orgForm.primaryDeliveryArea?.replace("-", " ")}
                       </div>
                       <div>
-                        <span className="font-medium">Main challenges:</span>{" "}
-                        {orgForm.deliveryChallenge.length > 0 
-                          ? orgForm.deliveryChallenge.join(", ")
+                        <span className="font-medium">Main challenge:</span>{" "}
+                        {orgForm.deliveryChallenge
+                          ? orgForm.deliveryChallenge
                           : "None selected"
                         }
                       </div>
@@ -990,7 +970,7 @@ function OrganizationSetup() {
               ) : (
                 <Button
                   onClick={handleNext}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  className="bg-[#C8E298] hover:bg-[#274690]"
                 >
                   Next
                 </Button>

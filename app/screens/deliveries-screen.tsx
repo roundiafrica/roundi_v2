@@ -24,6 +24,9 @@ import {
   ChevronRight,
   Star,
   Upload,
+  FileText,
+  Copy,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +49,22 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent as AlertDialogContentBase,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DeliveryService } from "@/lib/services/deliveries";
@@ -53,6 +72,7 @@ import AddressSearch from "@/components/address-search";
 import { toast } from "@/hooks/use-toast";
 import { DriverService } from "@/lib/services/drivers";
 import { RouteService } from "@/lib/services/routes";
+import { formatTrackingNumber, getAbsoluteTrackingUrl } from "@/lib/tracking";
 
 interface RouteOption {
   id: number;
@@ -85,6 +105,9 @@ export default function DeliveriesScreen() {
   });
   const [routes, setRoutes] = useState<RouteOption[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deliveryToDelete, setDeliveryToDelete] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [stats, setStats] = useState({
@@ -165,6 +188,8 @@ export default function DeliveriesScreen() {
 
     return {
       id: `DEL-${(delivery.id || 0).toString().padStart(3, "0")}`,
+      rawId: delivery.id || 0,
+      trackingNumber: formatTrackingNumber(delivery.id || 0),
       recipient: delivery.customer_name.trim(),
       address: delivery.location || "Address not provided",
       phone: delivery.phone || "Not provided",
@@ -330,6 +355,44 @@ export default function DeliveriesScreen() {
     setIsEditDialogOpen(true);
   };
 
+  const extractDeliveryId = (delivery: any) =>
+    parseInt(delivery.id.replace(/\D/g, ""), 10);
+
+  const handleOpenDeleteDialog = (delivery: any) => {
+    setDeliveryToDelete(delivery);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteDialogChange = (open: boolean) => {
+    setIsDeleteDialogOpen(open);
+    if (!open) {
+      setDeliveryToDelete(null);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deliveryToDelete) return;
+
+    setIsDeleting(true);
+
+    try {
+      const deliveryId = extractDeliveryId(deliveryToDelete);
+      await DeliveryService.deleteDelivery(deliveryId);
+      toast({ title: "Delivery deleted successfully" });
+      handleDeleteDialogChange(false);
+      await loadDeliveries();
+    } catch (error) {
+      console.error("Error deleting delivery:", error);
+      toast({
+        title: "Failed to delete delivery",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // Helper function to convert 12-hour format to 24-hour format
   const convertTo24Hour = (time12h: string) => {
     if (!time12h || time12h === "Not scheduled") return "";
@@ -346,6 +409,45 @@ export default function DeliveriesScreen() {
     }
 
     return `${hours.padStart(2, "0")}:${minutes}`;
+  };
+
+  // Geocode address using server-side API endpoint
+  const geocodeAddress = async (
+    address: string,
+    countryCode: string = "ke"
+  ): Promise<[number, number] | null> => {
+    if (!address || address.trim().length === 0) {
+      return null;
+    }
+
+    try {
+      const params = new URLSearchParams({
+        address: address,
+        countryCode: countryCode,
+      });
+
+      const response = await fetch(`/api/geocode?${params.toString()}`);
+
+      if (!response.ok) {
+        console.warn(`Geocoding failed for address: ${address}`);
+        return null;
+      }
+
+      const data = await response.json();
+
+      if (data.lat != null && data.lng != null) {
+        const lat = parseFloat(data.lat.toString());
+        const lng = parseFloat(data.lng.toString());
+        if (!isNaN(lat) && !isNaN(lng)) {
+          return [lng, lat]; // Return as [longitude, latitude] for PostGIS
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error(`Error geocoding address "${address}":`, error);
+      return null;
+    }
   };
 
   const handleFileUpload = async (
@@ -385,8 +487,6 @@ export default function DeliveriesScreen() {
       const requiredHeaders = [
         "customer_name",
         "location",
-        "lat",
-        "lng",
         "item",
         "phone",
         "drop_time",
@@ -414,48 +514,97 @@ export default function DeliveriesScreen() {
       }
 
       const newDeliveries = [];
+      const skippedRows: number[] = [];
       const totalRows = lines.length - 1;
       setImportProgress((prev) => ({ ...prev, total: totalRows }));
+
       for (let i = 1; i < lines.length; i++) {
         const values = parseCSVLine(lines[i]);
 
-        const lat = Number.parseFloat(values[headers.indexOf("lat")]);
-        const lng = Number.parseFloat(values[headers.indexOf("lng")]);
+        const customerName = values[headers.indexOf("customer_name")] || "";
+        const location = values[headers.indexOf("location")] || "";
+        const item = values[headers.indexOf("item")] || "";
+        const phone = values[headers.indexOf("phone")] || "";
+        const dropTime = values[headers.indexOf("drop_time")] || "";
 
-        if (isNaN(lat) || isNaN(lng)) {
-          console.warn(`Invalid coordinates at row ${i + 1}`);
+        // Validate required fields
+        if (!customerName || !location || !item || !phone || !dropTime) {
+          console.warn(`Missing required fields at row ${i + 1}`);
+          skippedRows.push(i + 1);
+          setImportProgress((prev) => ({
+            ...prev,
+            skipped: prev.skipped + 1,
+          }));
+          continue;
+        }
+
+        // Geocode the address
+        const coordinates = await geocodeAddress(location, "ke");
+
+        if (!coordinates) {
+          console.warn(
+            `Failed to geocode address "${location}" at row ${i + 1}`
+          );
+          skippedRows.push(i + 1);
+          setImportProgress((prev) => ({
+            ...prev,
+            skipped: prev.skipped + 1,
+          }));
           continue;
         }
 
         const delivery = {
-          customer_name: values[headers.indexOf("customer_name")] || "",
-          location: values[headers.indexOf("location")] || "",
-          coordinates: [lng, lat] as [number, number],
-          item: values[headers.indexOf("item")],
-          estimated_value: values[headers.indexOf("estimated_value")] || null,
-          weight: values[headers.indexOf("weight")] || null,
-          phone: values[headers.indexOf("phone")],
-          drop_time: values[headers.indexOf("drop_time")],
+          customer_name: customerName,
+          location: location,
+          coordinates: coordinates as [number, number],
+          item: item,
+          estimated_value:
+            headers.includes("estimated_value") &&
+            values[headers.indexOf("estimated_value")]
+              ? values[headers.indexOf("estimated_value")]
+              : null,
+          weight:
+            headers.includes("weight") && values[headers.indexOf("weight")]
+              ? values[headers.indexOf("weight")]
+              : null,
+          phone: phone,
+          drop_time: dropTime,
           status: "pending",
         };
 
-        newDeliveries.push({
-          ...delivery,
-        });
-        setImportProgress((prev) => ({
-          ...prev,
-          completed: prev.completed + 1,
-        }));
-        await DeliveryService.createDelivery(delivery);
+        try {
+          await DeliveryService.createDelivery(delivery);
+          newDeliveries.push({
+            ...delivery,
+          });
+          setImportProgress((prev) => ({
+            ...prev,
+            completed: prev.completed + 1,
+          }));
+        } catch (error) {
+          console.error(`Failed to create delivery at row ${i + 1}:`, error);
+          skippedRows.push(i + 1);
+          setImportProgress((prev) => ({
+            ...prev,
+            skipped: prev.skipped + 1,
+          }));
+        }
+
+        // Add a small delay to respect Nominatim rate limits (1 request per second)
+        if (i < lines.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
       }
 
       toast({
-        title: "Import successful",
+        title: "Import completed",
         description: `Successfully imported ${
           newDeliveries.length
         } deliveries.${
-          importProgress.skipped > 0
-            ? ` ${importProgress.skipped} rows were skipped.`
+          skippedRows.length > 0
+            ? ` ${skippedRows.length} row(s) were skipped (rows: ${skippedRows.slice(0, 5).join(", ")}${
+                skippedRows.length > 5 ? "..." : ""
+              }).`
             : ""
         }`,
       });
@@ -574,7 +723,7 @@ export default function DeliveriesScreen() {
       case "delivered":
         return <CheckCircle className="h-4 w-4 text-green-600" />;
       case "in-transit":
-        return <Activity className="h-4 w-4 text-blue-600" />;
+        return <Activity className="h-4 w-4 text-[#C8E298]" />;
       case "pending":
         return <Clock className="h-4 w-4 text-orange-600" />;
       case "failed":
@@ -589,7 +738,7 @@ export default function DeliveriesScreen() {
       case "delivered":
         return "bg-green-50 text-green-700 border-green-200";
       case "in-transit":
-        return "bg-blue-50 text-blue-700 border-blue-200";
+        return "text-gray-700 border-gray-300 border";
       case "pending":
         return "bg-orange-50 text-orange-700 border-orange-200";
       case "failed":
@@ -634,6 +783,7 @@ export default function DeliveriesScreen() {
           <Badge
             className={`${getStatusColor(delivery.status)} text-xs`}
             variant="outline"
+            style={delivery.status === "in-transit" ? { backgroundColor: '#EFF0EB' } : undefined}
           >
             {delivery.status}
           </Badge>
@@ -661,8 +811,8 @@ export default function DeliveriesScreen() {
             </div>
             {delivery.value !== "Not specified" && (
               <div className="flex items-center gap-1">
-                <DollarSign className="h-4 w-4 text-green-600" />
-                <span className="text-sm font-medium text-green-600">
+                <DollarSign className="h-4 w-4" style={{ color: '#162318' }} />
+                <span className="text-sm font-medium" style={{ color: '#162318' }}>
                   {delivery.value}
                 </span>
               </div>
@@ -698,14 +848,32 @@ export default function DeliveriesScreen() {
               Edit
             </Button>
           </div>
-          <ChevronRight className="h-4 w-4 text-gray-400" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-gray-400 hover:text-gray-600"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                className="text-red-600 focus:text-red-600"
+                onClick={() => handleOpenDeleteDialog(delivery)}
+              >
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </CardContent>
     </Card>
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-3 sm:p-4 lg:p-6">
+    <div className="min-h-screen p-3 sm:p-4 lg:p-6" style={{ backgroundColor: '#EFF0EB' }}>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6 sm:mb-8">
@@ -964,7 +1132,7 @@ export default function DeliveriesScreen() {
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
                           <div
-                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                            className="bg-[#C8E298] h-2 rounded-full transition-all duration-300"
                             style={{
                               width: `${
                                 importProgress.total > 0
@@ -994,6 +1162,25 @@ export default function DeliveriesScreen() {
                             disabled={isUploading}
                           />
                         </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const link = document.createElement("a");
+                              link.href = "/sample-deliveries.csv";
+                              link.download = "sample-deliveries.csv";
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                            }}
+                            className="flex items-center gap-2"
+                          >
+                            <FileText className="h-4 w-4" />
+                            Download Sample CSV
+                          </Button>
+                        </div>
                         <div className="text-sm text-gray-600 dark:text-gray-400">
                           <p className="font-medium mb-2">
                             Required CSV columns:
@@ -1001,14 +1188,16 @@ export default function DeliveriesScreen() {
                           <ul className="list-disc list-inside space-y-1">
                             <li>customer_name</li>
                             <li>location</li>
-                            <li>lat (latitude)</li>
-                            <li>lng (longitude)</li>
                             <li>item</li>
                             <li>phone</li>
                             <li>drop_time</li>
                           </ul>
                           <p className="mt-2">
                             Optional columns: estimated_value, weight
+                          </p>
+                          <p className="mt-2 text-xs text-gray-500">
+                            Note: Addresses will be automatically geocoded to get
+                            coordinates. No latitude/longitude columns needed.
                           </p>
                         </div>
                       </>
@@ -1032,6 +1221,43 @@ export default function DeliveriesScreen() {
                   </DialogHeader>
                   {selectedDelivery && (
                     <div className="space-y-6">
+                      {/* Tracking Number Section */}
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-500">Tracking Number</p>
+                            <p className="text-lg font-mono font-semibold text-gray-900">
+                              {selectedDelivery.trackingNumber}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                navigator.clipboard.writeText(selectedDelivery.trackingNumber);
+                                toast({ title: "Tracking number copied!" });
+                              }}
+                            >
+                              <Copy className="h-4 w-4 mr-1" />
+                              Copy
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const trackingUrl = getAbsoluteTrackingUrl(selectedDelivery.rawId);
+                                navigator.clipboard.writeText(trackingUrl);
+                                toast({ title: "Tracking link copied!" });
+                              }}
+                            >
+                              <ExternalLink className="h-4 w-4 mr-1" />
+                              Copy Link
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Status and Priority */}
                       <div className="flex items-center gap-3">
                         <Badge
@@ -1097,7 +1323,7 @@ export default function DeliveriesScreen() {
                             </div>
                             <div className="text-sm">
                               <span className="text-gray-500">Value: </span>
-                              <span className="text-gray-900">
+                              <span style={{ color: '#06402B' }}>
                                 {selectedDelivery.value}
                               </span>
                             </div>
@@ -1330,6 +1556,32 @@ export default function DeliveriesScreen() {
                   </form>
                 </DialogContent>
               </Dialog>
+              <AlertDialog
+                open={isDeleteDialogOpen}
+                onOpenChange={handleDeleteDialogChange}
+              >
+                <AlertDialogContentBase>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Delivery</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete {deliveryToDelete?.id}?
+                      This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeleting}>
+                      Cancel
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleConfirmDelete}
+                      disabled={isDeleting}
+                      className="bg-red-600 focus:ring-red-600 hover:bg-red-700"
+                    >
+                      {isDeleting ? "Deleting..." : "Delete"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContentBase>
+              </AlertDialog>
             </div>
           </div>
 
@@ -1414,7 +1666,7 @@ export default function DeliveriesScreen() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs sm:text-sm text-gray-600 mb-2">In Transit</p>
-                  <p className="text-xl sm:text-2xl font-semibold text-blue-600">{stats.inTransit}</p>
+                  <p className="text-xl sm:text-2xl font-semibold text-[#C8E298]">{stats.inTransit}</p>
                 </div>
                 <Activity className="h-6 w-6 sm:h-8 sm:w-8 text-blue-400" />
               </div>
@@ -1576,7 +1828,7 @@ export default function DeliveriesScreen() {
                                 )
                               )}
                               {delivery.value !== "Not specified" && (
-                                <p className="text-sm font-medium text-green-600 mt-2">
+                                <p className="text-sm font-medium" style={{ color: '#162318' }}>
                                   {delivery.value}
                                 </p>
                               )}
@@ -1634,6 +1886,25 @@ export default function DeliveriesScreen() {
                           <Edit className="h-4 w-4 mr-2" />
                           Edit
                         </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-gray-400 hover:text-gray-600"
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="text-red-600 focus:text-red-600"
+                            onClick={() => handleOpenDeleteDialog(delivery)}
+                          >
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       </div>
                     </div>
                   </div>
