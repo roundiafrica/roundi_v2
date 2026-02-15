@@ -35,3 +35,9 @@ echo "data_backup*.sql" >> .gitignore
 backup*.sql
 data_backup*.sql
 supabase/.temp/
+
+*.DS_Store
+.DS_Store
+.env
+.env.local
+.env*.local
