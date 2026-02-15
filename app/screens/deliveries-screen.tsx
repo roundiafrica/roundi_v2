@@ -72,7 +72,7 @@ import AddressSearch from "@/components/address-search";
 import { toast } from "@/hooks/use-toast";
 import { DriverService } from "@/lib/services/drivers";
 import { RouteService } from "@/lib/services/routes";
-import { formatTrackingNumber, getAbsoluteTrackingUrl } from "@/lib/tracking";
+import { getAbsoluteTrackingUrl } from "@/lib/tracking";
 
 interface RouteOption {
   id: number;
@@ -189,7 +189,7 @@ export default function DeliveriesScreen() {
     return {
       id: `DEL-${(delivery.id || 0).toString().padStart(3, "0")}`,
       rawId: delivery.id || 0,
-      trackingNumber: formatTrackingNumber(delivery.id || 0),
+      trackingNumber: delivery.tracking_id || "",
       recipient: delivery.customer_name.trim(),
       address: delivery.location || "Address not provided",
       phone: delivery.phone || "Not provided",
@@ -1246,7 +1246,7 @@ export default function DeliveriesScreen() {
                               variant="outline"
                               size="sm"
                               onClick={() => {
-                                const trackingUrl = getAbsoluteTrackingUrl(selectedDelivery.rawId);
+                                const trackingUrl = getAbsoluteTrackingUrl(selectedDelivery.trackingNumber);
                                 navigator.clipboard.writeText(trackingUrl);
                                 toast({ title: "Tracking link copied!" });
                               }}

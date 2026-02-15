@@ -207,7 +207,7 @@ export default function TrackPackagePage() {
                   <div>
                     <Input
                       type="text"
-                      placeholder="Enter tracking number (e.g., RD000123)"
+                      placeholder="Enter tracking number (e.g., roundi_xxxxx)"
                       value={trackingNumber}
                       onChange={(e) => setTrackingNumber(e.target.value)}
                       className="text-lg py-6 text-center"
