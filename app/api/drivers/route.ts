@@ -231,6 +231,31 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Reset drivers that are marked online but haven't posted a location in 5 minutes
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    const staleDriverIds = (data || [])
+      .filter(d => d.is_online && d.last_location_at && d.last_location_at < fiveMinutesAgo)
+      .map(d => d.id)
+
+    if (staleDriverIds.length > 0) {
+      // Fire-and-forget — don't block the response
+      supabase
+        .from('drivers')
+        .update({ is_online: false, status: 'inactive' })
+        .in('id', staleDriverIds)
+        .then(({ error: resetError }) => {
+          if (resetError) console.error('[drivers] Error resetting stale drivers:', resetError)
+        })
+
+      // Return corrected state in this response immediately
+      for (const d of data!) {
+        if (staleDriverIds.includes(d.id)) {
+          (d as any).is_online = false
+          ;(d as any).status = 'inactive'
+        }
+      }
+    }
+
     return NextResponse.json(data, { status: 200 })
   } catch (err: any) {
     return NextResponse.json(
