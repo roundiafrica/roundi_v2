@@ -215,11 +215,22 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Get today's date range for filtering
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const todayStart = today.toISOString()
+
     const { data, error } = await supabase
       .from('drivers')
       .select(`
         *,
-        deliveries:deliveries(count)
+        deliveries:deliveries(
+          id,
+          status,
+          updated_at,
+          customer_rating,
+          customer_feedback
+        )
       `)
       .eq('org_id', membership.organization_id)
       .order('created_at', { ascending: false })
