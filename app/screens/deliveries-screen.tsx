@@ -214,6 +214,8 @@ export default function DeliveriesScreen() {
       date: delivery.created_at
         ? formatDate(delivery.created_at)
         : "Unknown date",
+      customerRating: delivery.customer_rating || null,
+      customerFeedback: delivery.customer_feedback || null,
     };
   };
 
@@ -1346,6 +1348,40 @@ export default function DeliveriesScreen() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Customer Rating */}
+                      {selectedDelivery.customerRating && (
+                        <div>
+                          <h3 className="font-medium text-gray-900 mb-3">
+                            Customer Rating
+                          </h3>
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                            <div className="flex items-center gap-2 mb-2">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Star
+                                  key={star}
+                                  className={`h-5 w-5 ${
+                                    star <= selectedDelivery.customerRating
+                                      ? 'text-yellow-400 fill-current'
+                                      : 'text-gray-300'
+                                  }`}
+                                />
+                              ))}
+                              <span className="font-semibold text-gray-900 ml-2">
+                                {selectedDelivery.customerRating}/5
+                              </span>
+                            </div>
+                            {selectedDelivery.customerFeedback && (
+                              <div className="mt-3 pt-3 border-t border-amber-200">
+                                <p className="text-sm text-gray-500 mb-1">Feedback:</p>
+                                <p className="text-sm text-gray-900 italic">
+                                  "{selectedDelivery.customerFeedback}"
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Driver Information */}
                       <div>
