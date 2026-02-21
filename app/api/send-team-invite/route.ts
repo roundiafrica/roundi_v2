@@ -1,10 +1,30 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { Resend } from "resend"
+import { createAuthenticatedClient } from '@/lib/supabase'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function POST(request: NextRequest) {
   try {
+    // CRITICAL SECURITY: Require authentication
+    const supabase = createAuthenticatedClient(request.headers.get('authorization'))
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Verify user has organization membership (only org members can invite)
+    const { data: membership, error: membershipError } = await supabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (membershipError || !membership) {
+      return NextResponse.json({ error: 'No organization found for user' }, { status: 403 })
+    }
+
     const { email, inviteLink } = await request.json()
 
     if (!email) {
@@ -15,8 +35,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email service not configured" }, { status: 500 })
     }
 
-
-     // Send email via Resend
+    // Send email via Resend
     const { error: emailError } = await resend.emails.send({
       from: process.env.FROM_EMAIL || "invites@roundi.africa",
       to: [email],

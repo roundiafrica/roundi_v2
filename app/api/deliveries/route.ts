@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAuthenticatedClient } from '@/lib/supabase'
 import { normalizeDeliveryStatuses } from '@/lib/deliveryStatusMapper'
+import { maskPhoneNumber } from '@/lib/privacy'
 
 /**
  * GET /api/deliveries
@@ -72,7 +73,19 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json(normalizeDeliveryStatuses(data ?? []))
+    // PRIVACY: Mask customer phone numbers in list endpoint
+    const normalizedData = normalizeDeliveryStatuses(data ?? [])
+    const maskedData = normalizedData.map((delivery: any) => ({
+      ...delivery,
+      phone: maskPhoneNumber(delivery.phone),
+      // Also mask driver phone if present
+      driver: delivery.driver ? {
+        ...delivery.driver,
+        phone: maskPhoneNumber(delivery.driver.phone)
+      } : delivery.driver
+    }))
+
+    return NextResponse.json(maskedData)
 
   } catch (error: any) {
     console.error('Unexpected error in GET /api/deliveries:', error)

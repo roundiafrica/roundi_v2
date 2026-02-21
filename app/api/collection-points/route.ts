@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createAuthenticatedClient } from '@/lib/supabase'
+import { maskPhoneNumber, maskEmail } from '@/lib/privacy'
 
 // Validation schemas
 const createCollectionPointSchema = z.object({
@@ -24,9 +25,30 @@ export async function GET(request: Request) {
     const supabase = createAuthenticatedClient(request.headers.get('authorization'))
     const { searchParams } = new URL(request.url)
 
-    let query = supabase.from('collection_points').select('*')
+    // Verify user is authenticated
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-    // Apply filters if present
+    // Get user's organization
+    const { data: membership, error: membershipError } = await supabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (membershipError || !membership) {
+      return NextResponse.json({ error: 'No organization found for user' }, { status: 403 })
+    }
+
+    // Query with organization_id filter - CRITICAL SECURITY
+    let query = supabase
+      .from('collection_points')
+      .select('*')
+      .eq('organization_id', membership.organization_id)
+
+    // Apply additional filters if present
     const type = searchParams.get('type')
     const status = searchParams.get('status')
     if (type) query = query.eq('type', type)
@@ -36,14 +58,21 @@ export async function GET(request: Request) {
 
     if (error) throw error
 
-    return NextResponse.json({ data })
+    // PRIVACY: Mask contact person's phone and email in list endpoint
+    const maskedData = (data || []).map(point => ({
+      ...point,
+      phone: maskPhoneNumber(point.phone),
+      email: maskEmail(point.email),
+    }))
+
+    return NextResponse.json({ data: maskedData })
   } catch (error) {
     console.error('GET /api/collection-points error:', error)
-    
+
     if (error instanceof Error && error.message === 'Authorization header required') {
       return NextResponse.json({ error: error.message }, { status: 401 })
     }
-    
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch collection points' },
       { status: 500 }
