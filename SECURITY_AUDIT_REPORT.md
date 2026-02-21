@@ -227,31 +227,32 @@ Before deploying to production, test:
 
 ## Additional Privacy Protections Implemented
 
-### ✅ Comprehensive PII Masking
-**Enhancement:** PRIVACY-FIRST DATA HANDLING
+### ✅ Public Endpoint PII Masking
+**Enhancement:** PRIVACY PROTECTION FOR PUBLIC ENDPOINTS
 
 **Implementation:**
 - Created reusable privacy utility functions (`/lib/privacy.ts`)
-- Applied PII masking across ALL list endpoints
+- Applied PII masking to PUBLIC endpoints only
 - Phone numbers: `+254712345678` → `****5678`
 - Emails: `john@example.com` → `j***@example.com`
 
-**Endpoints Enhanced:**
-1. **GET /api/drivers** - Masks driver phone & email
-2. **GET /api/deliveries** - Masks customer & driver phone
-3. **GET /api/collection-points** - Masks contact phone & email
-4. **GET /api/track** - Masks driver phone (public endpoint)
+**Endpoint Protected:**
+- **GET /api/track** - Masks driver phone (public, no authentication)
 
 **Strategy:**
-- **List endpoints:** Masked by default (privacy-first)
-- **Detail endpoints:** Full data (operational need)
-- **Public endpoints:** Always masked (maximum protection)
+- **Authenticated internal endpoints:** Full data (operational need to call customers/drivers)
+- **Public endpoints:** Masked data (no authentication = maximum privacy)
+
+**Security Model:**
+- **Primary Protection:** Authentication + Organization Isolation
+- **Secondary Protection:** PII masking on public endpoints
+- **Operational First:** Don't break functionality with unnecessary masking
 
 **Benefits:**
-- ✅ GDPR compliance (data minimization)
-- ✅ Prevents PII harvesting/scraping
-- ✅ Protects from spam and social engineering
-- ✅ Reduces breach impact
+- ✅ Protects driver privacy from public tracking
+- ✅ Prevents unauthorized contact/harassment
+- ✅ Maintains operational functionality (team can call customers/drivers)
+- ✅ Defense-in-depth security model
 
 **Documentation:** See `/PRIVACY_PROTECTION.md` for complete details
 
@@ -259,12 +260,18 @@ Before deploying to production, test:
 
 ## Conclusion
 
-All **5 CRITICAL vulnerabilities have been fixed** + **Comprehensive PII protection implemented**. The application now has:
+All **5 CRITICAL vulnerabilities have been fixed** + **Public endpoint privacy protection**. The application now has:
 - ✅ Proper authentication on all endpoints
 - ✅ Organization-level data isolation
-- ✅ Privacy-first PII handling with masking
+- ✅ PII masking on public endpoints (driver privacy)
+- ✅ Full data on authenticated endpoints (operational functionality)
 - ✅ Prevention of API abuse
-- ✅ GDPR-compliant data minimization
+- ✅ Defense-in-depth security model
+
+**Security Approach:**
+- **Primary:** Authentication + Organization Scoping (prevents unauthorized access)
+- **Secondary:** PII masking on public endpoints (protects driver privacy)
+- **Operational:** Full data for authenticated users (enables calling customers/drivers)
 
 **Recommendation:** Deploy these fixes immediately to production.
 

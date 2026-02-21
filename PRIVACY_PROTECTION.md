@@ -31,27 +31,33 @@ All API endpoints now implement **Privacy by Design** principles by masking Pers
 
 ## Masking Strategy
 
-### List Endpoints (Masked)
-When fetching multiple records, PII is masked:
-- `GET /api/drivers` - Masks driver phone & email
-- `GET /api/deliveries` - Masks customer phone & driver phone
-- `GET /api/collection-points` - Masks contact phone & email
+### Authenticated Internal Endpoints (NOT Masked)
+Endpoints used by your team for operations show FULL data:
+- `GET /api/drivers` - Full phone & email (need to contact drivers)
+- `GET /api/deliveries` - Full customer & driver phone (need to call)
+- `GET /api/collection-points` - Full contact info (operational use)
+- `GET /api/drivers/:id` - Full data
+- `GET /api/deliveries/:id` - Full data
 
-**Rationale:** Bulk data access doesn't require full PII
+**Rationale:**
+- Authenticated users are authorized organization members
+- Organization-scoped data (users only see their own org)
+- Operational need to contact customers, drivers, and contacts
+- Breaking functionality by masking defeats the purpose
 
-### Detail Endpoints (Unmasked)
-When fetching a single record by ID, PII is NOT masked:
-- `GET /api/drivers/:id` - Shows full data
-- `GET /api/deliveries/:id` - Shows full data
-- `GET /api/collection-points/:id` - Shows full data
+**Security:**
+- ✅ Authentication required (prevents unauthorized access)
+- ✅ Organization isolation (multi-tenancy protection)
+- ✅ Audit logging available (track who accessed what)
 
-**Rationale:** Specific resource access indicates operational need for full data
-
-### Public Endpoints (Always Masked)
-Public endpoints ALWAYS mask PII regardless of context:
+### Public Endpoints (ALWAYS Masked)
+Public endpoints (no authentication) ALWAYS mask PII:
 - `GET /api/track?trackingNumber=XXX` - Masks driver phone
 
-**Rationale:** Public access requires maximum privacy protection
+**Rationale:**
+- No authentication = maximum privacy protection
+- Customers don't need driver's full phone number
+- Prevents unauthorized contact and harassment
 
 ---
 
@@ -72,38 +78,46 @@ maskCustomerName('John Doe Smith') // Returns: "John S."
 
 ### Usage in Endpoints
 
-**Example: Drivers Endpoint**
+**Authenticated Internal Endpoints (No Masking Needed)**
 ```typescript
-// Before (UNSAFE)
+// Authenticated endpoints - users need full data for operations
 return NextResponse.json(data)
+```
 
-// After (SAFE)
-const maskedData = (data || []).map(driver => ({
-  ...driver,
-  phone: maskPhoneNumber(driver.phone),
-  email: maskEmail(driver.email),
-}))
-return NextResponse.json(maskedData)
+**Public Endpoints (Always Mask)**
+```typescript
+// Public tracking endpoint - always mask PII
+const response = {
+  ...data,
+  driver: data.driver ? {
+    ...data.driver,
+    phone: maskPhoneNumber(data.driver.phone)
+  } : undefined
+}
+return NextResponse.json(response)
 ```
 
 ---
 
-## Endpoints Updated
+## Endpoints Security Model
 
-### ✅ Drivers
-- **GET /api/drivers** - Masks phone & email
-- **GET /api/drivers/:id** - Full data (operational need)
+### ✅ Authenticated Internal Endpoints (Full Data)
+These endpoints require authentication and are organization-scoped:
+- **GET /api/drivers** - Full phone & email (authenticated, org-scoped)
+- **GET /api/drivers/:id** - Full data (authenticated, org-scoped)
+- **GET /api/deliveries** - Full customer & driver phone (authenticated, org-scoped)
+- **GET /api/deliveries/:id** - Full data (authenticated, org-scoped)
+- **GET /api/collection-points** - Full contact info (authenticated, org-scoped)
+- **GET /api/collection-points/:id** - Full data (authenticated, org-scoped)
 
-### ✅ Deliveries
-- **GET /api/deliveries** - Masks customer phone & driver phone
-- **GET /api/deliveries/:id** - Full data (operational need)
+**Security Layers:**
+1. ✅ Authentication required
+2. ✅ Organization membership verification
+3. ✅ Organization-scoped queries
+4. ✅ Users can only access their own org's data
 
-### ✅ Collection Points
-- **GET /api/collection-points** - Masks contact phone & email
-- **GET /api/collection-points/:id** - Full data (operational need)
-
-### ✅ Tracking (Public)
-- **GET /api/track** - Masks driver phone (always)
+### ✅ Public Endpoints (Masked Data)
+- **GET /api/track** - Masks driver phone (no auth, public access)
 
 ---
 
@@ -139,22 +153,30 @@ If you need unmasked data for specific operations:
 
 ## Testing
 
-### Verify Masking
+### Verify Authenticated Endpoints (Full Data)
 ```bash
-# List endpoint should show masked data
+# Authenticated internal endpoints show full data
 curl GET /api/drivers -H "Authorization: Bearer TOKEN"
-# Response: { phone: "****5678", email: "j***@example.com" }
+# Response: { phone: "+254712345678", email: "john.doe@example.com" }
 
-# Detail endpoint should show full data
+# Detail endpoints also show full data
 curl GET /api/drivers/123 -H "Authorization: Bearer TOKEN"
 # Response: { phone: "+254712345678", email: "john.doe@example.com" }
+
+# Deliveries show full customer and driver phone
+curl GET /api/deliveries -H "Authorization: Bearer TOKEN"
+# Response: { phone: "+254700000000", driver: { phone: "+254712345678" } }
 ```
 
-### Verify Public Endpoints
+### Verify Public Endpoints (Masked Data)
 ```bash
-# Public tracking should always mask
+# Public tracking should always mask driver phone
 curl GET /api/track?trackingNumber=roundi_xxxxx
 # Response: { driver: { phone: "****5678" } }
+
+# Without auth, should fail
+curl GET /api/drivers
+# Response: 401 Unauthorized
 ```
 
 ---
@@ -239,12 +261,17 @@ GET /api/drivers?unmask=phone,email
 
 ## Conclusion
 
-All endpoints now implement **privacy-first** data handling:
-- ✅ PII masked by default in lists
-- ✅ Full data only when operationally needed
-- ✅ Public endpoints always protected
-- ✅ GDPR compliance maintained
-- ✅ Security posture improved
+All endpoints now implement **defense-in-depth** security:
+- ✅ Authenticated endpoints protected by auth + organization isolation
+- ✅ Full data available for operational needs (calling customers/drivers)
+- ✅ Public endpoints mask sensitive PII (driver phone numbers)
+- ✅ Multi-tenant security prevents cross-org access
+- ✅ Security through proper access control, not data hiding
 
-**Result:** Significantly reduced privacy risk while maintaining operational functionality.
+**Security Model:**
+- **Primary Protection:** Authentication + Organization Scoping
+- **Secondary Protection:** PII masking on public endpoints only
+- **Operational First:** Don't break functionality with unnecessary masking
+
+**Result:** Proper security without breaking operational workflows.
 
