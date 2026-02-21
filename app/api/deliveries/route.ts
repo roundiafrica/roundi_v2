@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAuthenticatedClient } from '@/lib/supabase'
 import { normalizeDeliveryStatuses } from '@/lib/deliveryStatusMapper'
-import { maskPhoneNumber } from '@/lib/privacy'
 
 /**
  * GET /api/deliveries
@@ -73,19 +72,10 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // PRIVACY: Mask customer phone numbers in list endpoint
-    const normalizedData = normalizeDeliveryStatuses(data ?? [])
-    const maskedData = normalizedData.map((delivery: any) => ({
-      ...delivery,
-      phone: maskPhoneNumber(delivery.phone),
-      // Also mask driver phone if present
-      driver: delivery.driver ? {
-        ...delivery.driver,
-        phone: maskPhoneNumber(delivery.driver.phone)
-      } : delivery.driver
-    }))
-
-    return NextResponse.json(maskedData)
+    // NOTE: No masking on authenticated internal endpoints
+    // Users need full phone numbers to call customers and drivers
+    // Masking is ONLY for public endpoints (e.g., /api/track)
+    return NextResponse.json(normalizeDeliveryStatuses(data ?? []))
 
   } catch (error: any) {
     console.error('Unexpected error in GET /api/deliveries:', error)
@@ -207,7 +197,7 @@ export async function POST(request: NextRequest) {
       weight: body.weight || null,
       phone: body.phone,
       drop_time: body.drop_time,
-      status: 'available', // driver-app compatible initial status
+      status: body.status || 'pending',
       delivery_notes: body.delivery_notes || null,
       organization_id: membership.organization_id,
       created_by: profile.id,
