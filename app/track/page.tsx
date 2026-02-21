@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Truck,
   Search,
@@ -18,7 +19,8 @@ import {
   User,
   Phone,
   AlertCircle,
-  Loader2
+  Loader2,
+  Star
 } from "lucide-react"
 import Link from "next/link"
 
@@ -33,6 +35,8 @@ interface TrackingData {
   attemptCount?: number
   deliveryNotes?: string
   proofOfDelivery?: string
+  customerRating?: number
+  customerFeedback?: string
   driver?: {
     name: string
     phone: string
@@ -55,6 +59,11 @@ export default function TrackPackagePage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [trackingData, setTrackingData] = useState<TrackingData | null>(null)
+  const [selectedRating, setSelectedRating] = useState(0)
+  const [hoverRating, setHoverRating] = useState(0)
+  const [feedback, setFeedback] = useState("")
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false)
+  const [ratingSubmitted, setRatingSubmitted] = useState(false)
 
   // Function to fetch tracking data
   const fetchTrackingData = useCallback(async (trackingNum: string) => {
@@ -63,6 +72,11 @@ export default function TrackPackagePage() {
     setIsLoading(true)
     setError(null)
     setTrackingData(null)
+    // Reset rating state when tracking a new package
+    setSelectedRating(0)
+    setHoverRating(0)
+    setFeedback("")
+    setRatingSubmitted(false)
 
     try {
       const response = await fetch(`/api/track?trackingNumber=${encodeURIComponent(trackingNum.trim())}`)
@@ -98,6 +112,42 @@ export default function TrackPackagePage() {
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault()
     fetchTrackingData(trackingNumber)
+  }
+
+  const handleSubmitRating = async () => {
+    if (!trackingData || selectedRating === 0) return
+
+    setIsSubmittingRating(true)
+    try {
+      const response = await fetch('/api/deliveries/rate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          trackingNumber: trackingData.trackingNumber,
+          rating: selectedRating,
+          feedback: feedback.trim() || null
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to submit rating')
+      }
+
+      setRatingSubmitted(true)
+      // Update trackingData with the new rating
+      setTrackingData({
+        ...trackingData,
+        customerRating: selectedRating,
+        customerFeedback: feedback.trim() || undefined
+      })
+    } catch (err: any) {
+      console.error('Rating submission error:', err)
+      alert(err.message || 'Failed to submit rating. Please try again.')
+    } finally {
+      setIsSubmittingRating(false)
+    }
   }
 
   const getStatusConfig = (status: string) => {
@@ -404,6 +454,123 @@ export default function TrackPackagePage() {
                 </Card>
               )}
 
+              {/* Customer Rating - Only show for completed deliveries */}
+              {trackingData.status === 'completed' && (
+                <Card className="bg-white shadow-lg border-0">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center">
+                      <Star className="w-5 h-5 mr-2 text-[#C8E298]" />
+                      Rate Your Delivery
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {trackingData.customerRating || ratingSubmitted ? (
+                      // Show submitted rating
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                        <div className="flex items-center justify-center mb-4">
+                          <CheckCircle className="w-8 h-8 text-green-600 mr-2" />
+                          <h3 className="text-lg font-semibold text-green-900">
+                            Thank you for your feedback!
+                          </h3>
+                        </div>
+                        <div className="flex items-center justify-center gap-2 mb-3">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              className={`w-6 h-6 ${
+                                star <= (trackingData.customerRating || selectedRating)
+                                  ? 'text-yellow-400 fill-current'
+                                  : 'text-gray-300'
+                              }`}
+                            />
+                          ))}
+                          <span className="font-semibold text-gray-900 ml-2">
+                            {trackingData.customerRating || selectedRating}/5
+                          </span>
+                        </div>
+                        {(trackingData.customerFeedback || feedback) && (
+                          <div className="mt-4 pt-4 border-t border-green-200">
+                            <p className="text-sm text-gray-600 mb-1">Your feedback:</p>
+                            <p className="text-sm text-gray-900 italic">
+                              "{trackingData.customerFeedback || feedback}"
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      // Show rating form
+                      <div className="space-y-4">
+                        <p className="text-gray-600 text-center">
+                          How was your delivery experience?
+                        </p>
+
+                        {/* Star Rating */}
+                        <div className="flex items-center justify-center gap-2 py-4">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => setSelectedRating(star)}
+                              onMouseEnter={() => setHoverRating(star)}
+                              onMouseLeave={() => setHoverRating(0)}
+                              className="transition-transform hover:scale-110 focus:outline-none"
+                            >
+                              <Star
+                                className={`w-10 h-10 ${
+                                  star <= (hoverRating || selectedRating)
+                                    ? 'text-yellow-400 fill-current'
+                                    : 'text-gray-300'
+                                } transition-colors`}
+                              />
+                            </button>
+                          ))}
+                        </div>
+
+                        {selectedRating > 0 && (
+                          <p className="text-center text-sm font-medium text-gray-700">
+                            {selectedRating === 5 && 'Excellent!'}
+                            {selectedRating === 4 && 'Great!'}
+                            {selectedRating === 3 && 'Good'}
+                            {selectedRating === 2 && 'Could be better'}
+                            {selectedRating === 1 && 'Needs improvement'}
+                          </p>
+                        )}
+
+                        {/* Feedback Textarea */}
+                        <div>
+                          <label className="text-sm text-gray-600 block mb-2">
+                            Additional feedback (optional)
+                          </label>
+                          <Textarea
+                            placeholder="Tell us about your delivery experience..."
+                            value={feedback}
+                            onChange={(e) => setFeedback(e.target.value)}
+                            rows={3}
+                            className="resize-none"
+                          />
+                        </div>
+
+                        {/* Submit Button */}
+                        <Button
+                          onClick={handleSubmitRating}
+                          disabled={selectedRating === 0 || isSubmittingRating}
+                          className="w-full bg-[#C8E298] hover:bg-[#b5d085] text-[#162318] text-lg py-6"
+                        >
+                          {isSubmittingRating ? (
+                            <>
+                              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                              Submitting...
+                            </>
+                          ) : (
+                            'Submit Rating'
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Track Another Package */}
               <div className="text-center pt-4">
                 <Button
@@ -412,6 +579,10 @@ export default function TrackPackagePage() {
                     setTrackingNumber('')
                     setTrackingData(null)
                     setError(null)
+                    setSelectedRating(0)
+                    setHoverRating(0)
+                    setFeedback("")
+                    setRatingSubmitted(false)
                   }}
                 >
                   Track Another Package
