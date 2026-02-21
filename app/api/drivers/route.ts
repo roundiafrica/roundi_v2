@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAuthenticatedClient } from '@/lib/supabase'
 import { getSupabaseServer } from '@/lib/supabase-server'
-import { maskPhoneNumber, maskEmail } from '@/lib/privacy'
 import crypto from 'crypto'
 import bcrypt from 'bcryptjs'
 
@@ -268,14 +267,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // PRIVACY: Mask PII in list endpoint
-    const maskedData = (data || []).map(driver => ({
-      ...driver,
-      phone: maskPhoneNumber(driver.phone),
-      email: maskEmail(driver.email),
-    }))
-
-    return NextResponse.json(maskedData, { status: 200 })
+    // NOTE: No masking on authenticated internal endpoints
+    // Users need full phone/email to contact drivers for operations
+    // Masking is ONLY for public endpoints (e.g., /api/track)
+    return NextResponse.json(data, { status: 200 })
   } catch (err: any) {
     return NextResponse.json(
       { error: 'Internal server error', details: err.message },
