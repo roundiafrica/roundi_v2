@@ -72,6 +72,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // NOTE: No masking on authenticated internal endpoints
+    // Users need full phone numbers to call customers and drivers
+    // Masking is ONLY for public endpoints (e.g., /api/track)
     return NextResponse.json(normalizeDeliveryStatuses(data ?? []))
 
   } catch (error: any) {
@@ -194,7 +197,7 @@ export async function POST(request: NextRequest) {
       weight: body.weight || null,
       phone: body.phone,
       drop_time: body.drop_time,
-      status: 'available', // driver-app compatible initial status
+      status: body.status || 'pending',
       delivery_notes: body.delivery_notes || null,
       organization_id: membership.organization_id,
       created_by: profile.id,

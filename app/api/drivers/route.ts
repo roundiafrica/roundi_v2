@@ -267,6 +267,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // NOTE: No masking on authenticated internal endpoints
+    // Users need full phone/email to contact drivers for operations
+    // Masking is ONLY for public endpoints (e.g., /api/track)
     return NextResponse.json(data, { status: 200 })
   } catch (err: any) {
     return NextResponse.json(

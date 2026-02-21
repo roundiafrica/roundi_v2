@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase-server';
+import { maskPhoneNumber } from '@/lib/privacy';
 
 export interface TrackingResponse {
   success: boolean;
@@ -179,7 +180,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<TrackingRespon
         customerFeedback: deliveryAny.customer_feedback || undefined,
         driver: driver ? {
           name: driver.name,
-          phone: driver.phone,
+          phone: maskPhoneNumber(driver.phone), // PRIVACY: Masked phone number
           vehicleType: driver.vehicle_type,
         } : undefined,
         route: route ? {
