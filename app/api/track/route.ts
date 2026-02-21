@@ -23,6 +23,8 @@ export interface TrackingResponse {
     attemptCount?: number;
     deliveryNotes?: string;
     proofOfDelivery?: string;
+    customerRating?: number;
+    customerFeedback?: string;
     driver?: {
       name: string;
       phone: string;
@@ -173,6 +175,8 @@ export async function GET(req: NextRequest): Promise<NextResponse<TrackingRespon
         attemptCount: deliveryAny.attempt_count || undefined,
         deliveryNotes: deliveryAny.delivery_notes || undefined,
         proofOfDelivery: deliveryAny.proof_of_delivery || undefined,
+        customerRating: deliveryAny.customer_rating || undefined,
+        customerFeedback: deliveryAny.customer_feedback || undefined,
         driver: driver ? {
           name: driver.name,
           phone: driver.phone,

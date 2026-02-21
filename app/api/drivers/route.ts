@@ -215,11 +215,22 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Get today's date range for filtering
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const todayStart = today.toISOString()
+
     const { data, error } = await supabase
       .from('drivers')
       .select(`
         *,
-        deliveries:deliveries(count)
+        deliveries:deliveries(
+          id,
+          status,
+          updated_at,
+          customer_rating,
+          customer_feedback
+        )
       `)
       .eq('org_id', membership.organization_id)
       .order('created_at', { ascending: false })
@@ -229,6 +240,31 @@ export async function GET(request: NextRequest) {
         { error: 'Failed to fetch drivers', details: error.message },
         { status: 500 }
       )
+    }
+
+    // Reset drivers that are marked online but haven't posted a location in 5 minutes
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    const staleDriverIds = (data || [])
+      .filter(d => d.is_online && d.last_location_at && d.last_location_at < fiveMinutesAgo)
+      .map(d => d.id)
+
+    if (staleDriverIds.length > 0) {
+      // Fire-and-forget — don't block the response
+      supabase
+        .from('drivers')
+        .update({ is_online: false, status: 'inactive' })
+        .in('id', staleDriverIds)
+        .then(({ error: resetError }) => {
+          if (resetError) console.error('[drivers] Error resetting stale drivers:', resetError)
+        })
+
+      // Return corrected state in this response immediately
+      for (const d of data!) {
+        if (staleDriverIds.includes(d.id)) {
+          (d as any).is_online = false
+          ;(d as any).status = 'inactive'
+        }
+      }
     }
 
     return NextResponse.json(data, { status: 200 })
