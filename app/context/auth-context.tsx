@@ -24,12 +24,44 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     const getSession = async () => {
-      const { data, error } = await supabase.auth.getSession();
-      if (data?.session) {
-        setSession(data.session);
-        setUser(data.session.user);
+      try {
+        // Get session and validate it
+        const { data, error } = await supabase.auth.getSession();
+
+        if (error) {
+          console.error('Auth error:', error);
+          setSession(null);
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+
+        if (data?.session) {
+          // Verify the session is actually valid by checking the user
+          const { data: userData, error: userError } = await supabase.auth.getUser();
+
+          if (userError || !userData.user) {
+            // Session exists but is invalid/expired - clear it
+            console.log('Session expired or invalid, clearing...');
+            await supabase.auth.signOut();
+            setSession(null);
+            setUser(null);
+          } else {
+            // Valid session
+            setSession(data.session);
+            setUser(userData.user);
+          }
+        } else {
+          setSession(null);
+          setUser(null);
+        }
+      } catch (err) {
+        console.error('Unexpected auth error:', err);
+        setSession(null);
+        setUser(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     getSession();
