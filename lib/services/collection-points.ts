@@ -137,7 +137,7 @@ export class CollectionPointService {
   // Get collection point statistics
   static async getCollectionPointStats() {
     const points = await this.getAllCollectionPoints()
-    
+
     return {
       total: points.length,
       active: points.filter(p => p.status === 'active').length,
