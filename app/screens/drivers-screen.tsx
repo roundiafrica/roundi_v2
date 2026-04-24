@@ -945,7 +945,7 @@ export default function DriversScreen() {
                       <Label htmlFor="phone">Phone Number *</Label>
                       <PhoneInput
                         placeholder="+254 7XX XXX XXX"
-                        defaultCountry="us"
+                        defaultCountry="ke"
                         value={formData.phone}
                         disabled={false}
                         onChange={(value) =>
@@ -1318,7 +1318,7 @@ export default function DriversScreen() {
                   <Label htmlFor="phone">Phone Number*</Label>
                   <PhoneInput
                     placeholder="+254 7XX XXX XXX"
-                    defaultCountry="us"
+                    defaultCountry="ke"
                     value={formData.phone}  
                     onChange={(value) => handleInputChange("phone", value)}
                     required

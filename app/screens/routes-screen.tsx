@@ -940,7 +940,7 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                                     <Label>Phone Number *</Label>
                                     <PhoneInput
                                       placeholder="+254 712 345 678"
-                                      defaultCountry="us"
+                                      defaultCountry="ke"
                                       value={delivery.phone}
                                       onChange={(value) => handleInputChange("phone", value)}
                                       required

@@ -1410,7 +1410,7 @@ export default function DeliveriesScreen() {
                         <Label htmlFor="edit_phone">Phone Number *</Label>
                         <PhoneInput
                           placeholder="+254 712 345 678"
-                          defaultCountry="us"
+                          defaultCountry="ke"
                           value={formData.phone}  
                           required
                           onChange={(value) =>
