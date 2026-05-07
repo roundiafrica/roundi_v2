@@ -40,8 +40,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Invalid driver ID' }, { status: 400 });
     }
 
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     // Authenticate the admin making the request
-    const supabase = createAuthenticatedClient(request.headers.get('authorization'));
+    const supabase = createAuthenticatedClient(authHeader);
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
@@ -81,12 +86,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const driverAny = driver as any;
 
-    // Check if the driver has already used their setup OTP
-    if (driverAny.setup_otp_used && driverAny.phone_verified_at) {
-      return NextResponse.json({
-        error: 'This driver has already completed setup. They can use the regular OTP login flow.',
-      }, { status: 400 });
-    }
+    // Admins can regenerate OTP for any driver regardless of setup status
+    // if (driverAny.setup_otp_used && driverAny.phone_verified_at) {
+    //   return NextResponse.json({
+    //     error: 'This driver has already completed setup. They can use the regular OTP login flow.',
+    //   }, { status: 400 });
+    // }
 
     // Generate new setup OTP
     const setupOtpData = generateSetupOtp();
@@ -116,7 +121,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       expiresAt: setupOtpData.expiresAt,
     }, { status: 200 });
   } catch (error: any) {
-    console.error('Unexpected error in POST /api/drivers/[id]/regenerate-otp:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Unexpected error in POST /api/drivers/[id]/regenerate-otp:', error?.message ?? error);
+    return NextResponse.json({ error: error?.message ?? 'Internal server error' }, { status: 500 });
   }
 }
