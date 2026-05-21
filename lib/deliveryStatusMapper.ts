@@ -18,9 +18,10 @@ export type DriverStatus =
   | 'pickup'
   | 'on_the_way'
   | 'delivered'
-  | 'failed';
+  | 'failed'
+  | 'rejected';
 
-export type WebStatus = 'pending' | 'in-progress' | 'completed' | 'failed';
+export type WebStatus = 'pending' | 'in-progress' | 'completed' | 'failed' | 'rejected';
 
 // ---------------------------------------------------------------------------
 // Driver → Web  (used when reading from DB for API responses)
@@ -33,6 +34,7 @@ const DRIVER_TO_WEB: Record<string, WebStatus> = {
   on_the_way:   'in-progress',
   delivered:    'completed',
   failed:       'failed',
+  rejected:     'rejected',
   // Web-native values (pass-through — handle deliveries created by web app)
   pending:      'pending',
   'in-progress': 'in-progress',
@@ -47,6 +49,7 @@ const WEB_TO_DRIVER: Record<string, DriverStatus> = {
   'in-progress': 'on_the_way',
   completed:     'delivered',
   failed:        'failed',
+  rejected:      'rejected',
   // Driver-native values (pass-through — accept raw driver statuses in PATCH)
   available:   'available',
   accepted:    'accepted',

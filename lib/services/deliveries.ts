@@ -21,7 +21,7 @@ export interface DeliveryForMap {
   weight?: string | null;
   phone: string;
   drop_time: string;
-  status: "pending" | "in-progress" | "completed" | "failed";
+  status: "pending" | "in-progress" | "completed" | "failed" | "rejected";
   order_index?: number | null;
 }
 
@@ -304,7 +304,7 @@ export class DeliveryService {
     title: string;
     start: Date;
     end: Date;
-    status: "pending" | "in-progress" | "completed" | "failed";
+    status: "pending" | "in-progress" | "completed" | "failed" | "rejected";
     location: string;
     customer_name: string;
     item: string;

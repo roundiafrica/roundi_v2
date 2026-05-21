@@ -160,7 +160,7 @@ export interface Database {
           weight: string | null;
           phone: string;
           drop_time: string;
-          status: "pending" | "in-progress" | "completed" | "failed";
+          status: "pending" | "in-progress" | "completed" | "failed" | "rejected";
           order_index: number | null;
           created_at: string;
           updated_at: string;
@@ -183,7 +183,7 @@ export interface Database {
           weight?: string | null;
           phone: string;
           drop_time: string;
-          status?: "pending" | "in-progress" | "completed" | "failed";
+          status?: "pending" | "in-progress" | "completed" | "failed" | "rejected";
           order_index?: number | null;
           delivery_notes?: string | null;
           proof_of_delivery?: string | null;
@@ -199,7 +199,7 @@ export interface Database {
           weight?: string | null;
           phone?: string;
           drop_time?: string;
-          status?: "pending" | "in-progress" | "completed" | "failed";
+          status?: "pending" | "in-progress" | "completed" | "failed" | "rejected";
           order_index?: number | null;
           delivery_notes?: string | null;
           proof_of_delivery?: string | null;
