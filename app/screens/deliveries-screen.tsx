@@ -773,7 +773,14 @@ export default function DeliveriesScreen() {
       : 0;
   };
 
-  const DeliveryCard = ({ delivery }: { delivery: any }) => (
+  const DeliveryCard = ({ delivery }: { delivery: any }) => {
+    const isUnassignedByStatus =
+      delivery.status === "failed" || delivery.status === "rejected";
+    const displayDriver = isUnassignedByStatus ? "Unassigned" : delivery.driver;
+    const displayDriverAvatar = isUnassignedByStatus
+      ? "U"
+      : delivery.driverAvatar;
+    return (
     <Card className="hover:shadow-md transition-shadow">
       <CardContent className="p-6">
         <div className="flex items-start justify-between mb-4">
@@ -828,10 +835,10 @@ export default function DeliveriesScreen() {
           <div className="flex items-center gap-2">
             <Avatar className="h-6 w-6">
               <AvatarFallback className="bg-gray-100 text-gray-600 text-xs">
-                {delivery.driverAvatar}
+                {displayDriverAvatar}
               </AvatarFallback>
             </Avatar>
-            <span className="text-sm text-gray-600">{delivery.driver}</span>
+            <span className="text-sm text-gray-600">{displayDriver}</span>
           </div>
         </div>
 
@@ -876,7 +883,8 @@ export default function DeliveriesScreen() {
         </div>
       </CardContent>
     </Card>
-  );
+    );
+  };
 
   return (
     <div className="min-h-screen p-3 sm:p-4 lg:p-6" style={{ backgroundColor: '#EFF0EB' }}>
@@ -1388,21 +1396,42 @@ export default function DeliveriesScreen() {
                       )}
 
                       {/* Driver Information */}
-                      <div>
-                        <h3 className="font-medium text-gray-900 mb-3">
-                          Driver Assignment
-                        </h3>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback className="bg-gray-100 text-gray-600 text-sm">
-                              {selectedDelivery.driverAvatar}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-gray-900">
-                            {selectedDelivery.driver}
-                          </span>
-                        </div>
-                      </div>
+                      {(() => {
+                        const isUnassignedByStatus =
+                          selectedDelivery.status === "failed" ||
+                          selectedDelivery.status === "rejected";
+                        const driverName = isUnassignedByStatus
+                          ? "Unassigned"
+                          : selectedDelivery.driver;
+                        const driverAvatar = isUnassignedByStatus
+                          ? "U"
+                          : selectedDelivery.driverAvatar;
+                        return (
+                          <div>
+                            <h3 className="font-medium text-gray-900 mb-3">
+                              Driver Assignment
+                            </h3>
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-8 w-8">
+                                <AvatarFallback className="bg-gray-100 text-gray-600 text-sm">
+                                  {driverAvatar}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-gray-900">
+                                {driverName}
+                              </span>
+                            </div>
+                            {isUnassignedByStatus &&
+                              selectedDelivery.driver !== "Unassigned" && (
+                                <p className="text-xs text-gray-500 mt-2">
+                                  Driver was unassigned because the delivery is{" "}
+                                  {selectedDelivery.status}. Reassign to another
+                                  driver to retry.
+                                </p>
+                              )}
+                          </div>
+                        );
+                      })()}
 
                       <div className="flex justify-end">
                         <Button onClick={() => setIsViewDialogOpen(false)}>
@@ -1884,11 +1913,17 @@ export default function DeliveriesScreen() {
                               <div className="flex items-center gap-2">
                                 <Avatar className="h-6 w-6">
                                   <AvatarFallback className="bg-gray-100 text-gray-600 text-xs">
-                                    {delivery.driverAvatar}
+                                    {delivery.status === "failed" ||
+                                    delivery.status === "rejected"
+                                      ? "U"
+                                      : delivery.driverAvatar}
                                   </AvatarFallback>
                                 </Avatar>
                                 <span className="text-sm text-gray-900">
-                                  {delivery.driver}
+                                  {delivery.status === "failed" ||
+                                  delivery.status === "rejected"
+                                    ? "Unassigned"
+                                    : delivery.driver}
                                 </span>
                               </div>
                               <div className="flex items-center text-sm">

@@ -31,13 +31,14 @@ export async function GET(request: NextRequest) {
     const maxDetourKm = parseFloat(request.nextUrl.searchParams.get('max_detour_km') || '3')
     const limit = parseInt(request.nextUrl.searchParams.get('limit') || '50')
 
-    // Fetch all unassigned pending deliveries for this org
+    // Fetch all unassigned deliveries for this org. Includes failed/rejected
+    // so they can be reassigned to another driver or route.
     const { data: deliveries, error: deliveriesError } = await supabase
       .from('deliveries')
       .select('*')
       .eq('organization_id', membership.organization_id)
       .is('route_id', null)
-      .eq('status', 'pending')
+      .in('status', ['pending', 'failed', 'rejected'])
       .order('created_at', { ascending: false })
       .limit(100)
 

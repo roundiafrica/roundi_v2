@@ -117,6 +117,13 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       updates.status = toDriverStatus(updates.status)
     }
 
+    // When a delivery is marked failed or rejected, clear the driver/route
+    // assignment so it can be reassigned to another driver.
+    if (updates.status === 'failed' || updates.status === 'rejected') {
+      updates.assigned_to = null
+      updates.route_id = null
+    }
+
     if ('coordinates' in updates) {
       const coords = updates.coordinates
       if (Array.isArray(coords) && coords.length === 2 &&

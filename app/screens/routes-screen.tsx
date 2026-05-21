@@ -222,7 +222,11 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
         const allDeliveries = await DeliveryService.getAllDeliveries();
         // Filter deliveries that are not assigned to any route
         const unassigned = allDeliveries.filter(
-          (delivery: any) => !delivery.route_id && delivery.status === "pending"
+          (delivery: any) =>
+            !delivery.route_id &&
+            (delivery.status === "pending" ||
+              delivery.status === "failed" ||
+              delivery.status === "rejected")
         );
         setExistingDeliveries(unassigned);
       }
