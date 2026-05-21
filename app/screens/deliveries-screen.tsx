@@ -730,6 +730,8 @@ export default function DeliveriesScreen() {
         return <Clock className="h-4 w-4 text-orange-600" />;
       case "failed":
         return <XCircle className="h-4 w-4 text-red-600" />;
+      case "rejected":
+        return <XCircle className="h-4 w-4 text-rose-600" />;
       default:
         return <AlertCircle className="h-4 w-4 text-gray-600" />;
     }
@@ -745,6 +747,8 @@ export default function DeliveriesScreen() {
         return "bg-orange-50 text-orange-700 border-orange-200";
       case "failed":
         return "bg-red-50 text-red-700 border-red-200";
+      case "rejected":
+        return "bg-rose-50 text-rose-700 border-rose-200";
       default:
         return "bg-gray-50 text-gray-600 border-gray-200";
     }
@@ -1643,6 +1647,7 @@ export default function DeliveriesScreen() {
                   <SelectItem value="in-transit">In Transit</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="failed">Failed</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
                 </SelectContent>
               </Select>
             </div>
