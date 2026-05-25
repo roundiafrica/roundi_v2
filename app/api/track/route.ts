@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase-server';
+import { maskPhoneNumber } from '@/lib/privacy';
 
 export interface TrackingResponse {
   success: boolean;
@@ -23,6 +24,8 @@ export interface TrackingResponse {
     attemptCount?: number;
     deliveryNotes?: string;
     proofOfDelivery?: string;
+    customerRating?: number;
+    customerFeedback?: string;
     driver?: {
       name: string;
       phone: string;
@@ -41,29 +44,6 @@ export interface TrackingResponse {
   error?: string;
 }
 
-/**
- * Generate a friendly tracking number from delivery ID
- * Format: RD + padded ID (e.g., RD000123)
- */
-function formatTrackingNumber(id: number): string {
-  return `RD${id.toString().padStart(6, '0')}`;
-}
-
-/**
- * Parse tracking number to get delivery ID
- * Accepts: RD000123, rd000123, 000123, or just 123
- */
-function parseTrackingNumber(trackingNumber: string): number | null {
-  const cleaned = trackingNumber.trim().toUpperCase();
-
-  // Remove RD prefix if present
-  const numericPart = cleaned.replace(/^RD/, '');
-
-  // Parse as integer
-  const id = parseInt(numericPart, 10);
-
-  return isNaN(id) ? null : id;
-}
 
 /**
  * Build timeline from delivery data
@@ -134,23 +114,10 @@ export async function GET(req: NextRequest): Promise<NextResponse<TrackingRespon
       );
     }
 
-    // Parse tracking number to get delivery ID
-    const deliveryId = parseTrackingNumber(trackingNumber);
-
-    if (deliveryId === null) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid tracking number format. Please use format: RD123456',
-        },
-        { status: 400 }
-      );
-    }
-
     // Use server Supabase client
     const supabase = await getSupabaseServer();
 
-    // Fetch delivery with route and driver info
+    // Fetch delivery with route and driver info, querying by tracking_id
     const { data: delivery, error: deliveryError } = await supabase
       .from('deliveries')
       .select(`
@@ -167,7 +134,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<TrackingRespon
           )
         )
       `)
-      .eq('id', deliveryId)
+      .eq('tracking_id', trackingNumber)
       .maybeSingle();
 
     if (deliveryError) {
@@ -199,7 +166,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<TrackingRespon
     const response: TrackingResponse = {
       success: true,
       delivery: {
-        trackingNumber: formatTrackingNumber(deliveryAny.id),
+        trackingNumber: deliveryAny.tracking_id,
         status: deliveryAny.status,
         customerName: deliveryAny.customer_name,
         location: deliveryAny.location,
@@ -209,9 +176,11 @@ export async function GET(req: NextRequest): Promise<NextResponse<TrackingRespon
         attemptCount: deliveryAny.attempt_count || undefined,
         deliveryNotes: deliveryAny.delivery_notes || undefined,
         proofOfDelivery: deliveryAny.proof_of_delivery || undefined,
+        customerRating: deliveryAny.customer_rating || undefined,
+        customerFeedback: deliveryAny.customer_feedback || undefined,
         driver: driver ? {
           name: driver.name,
-          phone: driver.phone,
+          phone: maskPhoneNumber(driver.phone), // PRIVACY: Masked phone number
           vehicleType: driver.vehicle_type,
         } : undefined,
         route: route ? {

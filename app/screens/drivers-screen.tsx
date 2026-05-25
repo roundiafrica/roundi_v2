@@ -18,7 +18,6 @@ import {
   Activity,
   RefreshCw,
   AlertCircle,
-  X,
   Upload,
   FileText,
   Copy,
@@ -101,6 +100,52 @@ const transformDriverForUI = (driver: any) => {
     }
   };
 
+  const getTimeAgo = (dateString: string | null) => {
+    if (!dateString) return "Never";
+
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffDays > 0) return `${diffDays}d ago`;
+    if (diffHours > 0) return `${diffHours}h ago`;
+    if (diffMins > 0) return `${diffMins}m ago`;
+    return "Just now";
+  };
+
+  // Calculate real delivery statistics
+  const deliveries = driver.deliveries || [];
+  const completedDeliveries = deliveries.filter((d: any) => d.status === "completed");
+  const totalDeliveries = completedDeliveries.length;
+
+  // Get today's date range
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStart = today.getTime();
+
+  const completedToday = completedDeliveries.filter((d: any) => {
+    if (!d.updated_at) return false;
+    const deliveryDate = new Date(d.updated_at).getTime();
+    return deliveryDate >= todayStart;
+  }).length;
+
+  // Calculate average rating from completed deliveries
+  const ratedDeliveries = completedDeliveries.filter((d: any) => d.customer_rating != null);
+  const averageRating = ratedDeliveries.length > 0
+    ? ratedDeliveries.reduce((sum: number, d: any) => sum + d.customer_rating, 0) / ratedDeliveries.length
+    : 0;
+
+  // Use last_location_at for last active time - only if they've actually posted a location
+  // If no location data, show based on online status or "No activity"
+  const lastActiveText = driver.last_location_at
+    ? getTimeAgo(driver.last_location_at)
+    : driver.is_online
+    ? "Online now"
+    : "No activity";
+
   return {
     id: driver.id,
     name: driver.name,
@@ -109,18 +154,13 @@ const transformDriverForUI = (driver: any) => {
     status: mapStatus(driver.status),
     location: getLocationFromVehicle(driver.vehicle_type),
     vehicle: `${driver.vehicle_type} - ${driver.license_number}`,
-    rating: 4.9,
-    totalDeliveries: driver.deliveries?.[0]?.count || 0,
-    completedToday: driver.status === "active" ? 1 : 0,
+    rating: averageRating,
+    totalDeliveries: totalDeliveries,
+    completedToday: completedToday,
     joinDate: formatDate(driver.created_at),
     avatar: driver.avatar || getInitials(driver.name),
-    lastActive:
-      driver.status === "active"
-        ? `${Math.floor(Math.random() * 30) + 1}m ago`
-        : driver.status === "on_break"
-        ? `${Math.floor(Math.random() * 2) + 1}h ago`
-        : `${Math.floor(Math.random() * 24) + 1}h ago`,
-    efficiency: Math.floor(Math.random() * 15) + 85, // Random between 85-100%
+    lastActive: lastActiveText,
+    efficiency: totalDeliveries > 0 ? Math.min(95, 85 + Math.floor(totalDeliveries / 10)) : 0, // Basic efficiency calculation based on delivery count
   };
 };
 
@@ -185,6 +225,7 @@ export default function DriversScreen() {
       setDrivers(transformedDrivers);
 
       // Calculate stats
+      const driversWithRatings = transformedDrivers.filter((d) => d.rating > 0);
       const newStats = {
         total: transformedDrivers.length,
         active: transformedDrivers.filter((d) => d.status === "active").length,
@@ -192,10 +233,10 @@ export default function DriversScreen() {
         offline: transformedDrivers.filter((d) => d.status === "offline")
           .length,
         avgRating:
-          transformedDrivers.length > 0
+          driversWithRatings.length > 0
             ? Math.round(
-                (transformedDrivers.reduce((sum, d) => sum + d.rating, 0) /
-                  transformedDrivers.length) *
+                (driversWithRatings.reduce((sum, d) => sum + d.rating, 0) /
+                  driversWithRatings.length) *
                   10
               ) / 10
             : 0,
@@ -1096,10 +1137,10 @@ export default function DriversScreen() {
                 <div>
                   <p className="text-xs sm:text-sm text-gray-600">Avg Rating</p>
                   <p className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-900">
-                    {stats.avgRating}
+                    {stats.avgRating > 0 ? stats.avgRating : 'N/A'}
                   </p>
                 </div>
-                <Star className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-yellow-400" />
+                <Star className={`h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 ${stats.avgRating > 0 ? 'text-yellow-400' : 'text-gray-300'}`} />
               </div>
             </CardContent>
           </Card>
@@ -1227,9 +1268,9 @@ export default function DriversScreen() {
                     <div>
                       <p className="text-gray-500">Rating</p>
                       <div className="flex items-center gap-1">
-                        <Star className="h-3 w-3 text-yellow-400 fill-current" />
+                        <Star className={`h-3 w-3 ${driver.rating > 0 ? 'text-yellow-400 fill-current' : 'text-gray-300'}`} />
                         <span className="font-medium text-gray-900">
-                          {driver.rating.toFixed(1)}
+                          {driver.rating > 0 ? driver.rating.toFixed(1) : 'N/A'}
                         </span>
                       </div>
                     </div>

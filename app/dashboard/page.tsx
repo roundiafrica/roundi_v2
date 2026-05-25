@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import {
   Search,
   Menu,
@@ -16,6 +16,7 @@ import {
   HelpCircle,
   MapPin,
   X,
+  ClipboardList,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,18 +24,6 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import FeatureTour, { useFeatureTour } from "@/components/feature-tour";
-
-// Import all screen components
-import RoutesScreen from "../screens/routes-screen";
-import DeliveriesScreen from "../screens/deliveries-screen";
-import DriversScreen from "../screens/drivers-screen";
-import OptimizeScreen from "../screens/optimize-screen";
-import ScheduleScreen from "../screens/schedule-screen";
-import AnalyticsScreen from "../screens/analytics-screen";
-import SettingsScreen from "../screens/settings-screen";
-import AssignDriversScreen from "../screens/assign-drivers-screen";
-import RouteMapScreen from "../screens/route-map-screen";
-import CollectionPointsScreen from "../screens/collection-points-screen";
 import UserProfile from "../components/user-profile";
 import { RequireAuth } from "@/components/require-auth";
 import { DriverService } from "@/lib/services/drivers";
@@ -42,6 +31,19 @@ import { DeliveryService } from "@/lib/services/deliveries";
 import { RouteService } from "@/lib/services/routes";
 import { CollectionPointService } from "@/lib/services/collection-points";
 import { supabase } from "@/lib/supabase";
+
+// Lazy load screen components - only load when needed for better performance
+const RoutesScreen = lazy(() => import("../screens/routes-screen"));
+const DeliveriesScreen = lazy(() => import("../screens/deliveries-screen"));
+const DriversScreen = lazy(() => import("../screens/drivers-screen"));
+const OptimizeScreen = lazy(() => import("../screens/optimize-screen"));
+const ScheduleScreen = lazy(() => import("../screens/schedule-screen"));
+const AnalyticsScreen = lazy(() => import("../screens/analytics-screen"));
+const SettingsScreen = lazy(() => import("../screens/settings-screen"));
+const AssignDriversScreen = lazy(() => import("../screens/assign-drivers-screen"));
+const RouteMapScreen = lazy(() => import("../screens/route-map-screen"));
+const CollectionPointsScreen = lazy(() => import("../screens/collection-points-screen"));
+const ServiceRequestsScreen = lazy(() => import("../screens/service-requests-screen"));
 
 export default function DashboardPage() {
   const [activeScreen, setActiveScreen] = useState("routes");
@@ -55,21 +57,32 @@ export default function DashboardPage() {
     deliveries: 0,
     drivers: 0,
     collectionPoints: 0,
+    serviceRequests: 0,
   });
   const { showTour, hasCompletedTour, startTour, closeTour, completeTour } =
     useFeatureTour();
   const sidebarStats = async () => {
-    const driverStats = await DriverService.getDriverStats();
-    const deliveryStats = await DeliveryService.getDeliveryStats();
-    const routeStats = await RouteService.getRouteStats();
-    const collectionPointStats = await CollectionPointService.getCollectionPointStats();
-    setSidebarCount((prev) => ({
-      ...prev,
+    const [driverStats, deliveryStats, routeStats, collectionPointStats] =
+      await Promise.all([
+        DriverService.getDriverStats(),
+        DeliveryService.getDeliveryStats(),
+        RouteService.getRouteStats(),
+        CollectionPointService.getCollectionPointStats(),
+      ]);
+
+    // Count service requests via the session-aware supabase client.
+    // RLS on partner_allocation_requests filters by the user's org automatically.
+    const { count: srCount } = await supabase
+      .from("partner_allocation_requests")
+      .select("*", { count: "exact", head: true });
+
+    setSidebarCount({
       routes: routeStats.total,
       deliveries: deliveryStats.total,
       drivers: driverStats.total,
       collectionPoints: collectionPointStats.total,
-    }));
+      serviceRequests: srCount ?? 0,
+    });
   };
   const sidebarItems = [
     { id: "routes", icon: Route, label: "Routes", count: sidebarCount.routes },
@@ -78,6 +91,12 @@ export default function DashboardPage() {
       icon: Package,
       label: "Deliveries",
       count: sidebarCount.deliveries,
+    },
+    {
+      id: "service-requests",
+      icon: ClipboardList,
+      label: "Service Requests",
+      count: sidebarCount.serviceRequests,
     },
     {
       id: "drivers",
@@ -150,6 +169,8 @@ export default function DashboardPage() {
         return <DriversScreen />;
       case "collection-points":
         return <CollectionPointsScreen />;
+      case "service-requests":
+        return <ServiceRequestsScreen />;
 
       // case "optimize":
       //   return <OptimizeScreen />;
@@ -423,7 +444,18 @@ export default function DashboardPage() {
 
           {/* Screen Content */}
 
-          <div className="flex-1 overflow-auto">{renderScreen()}</div>
+          <div className="flex-1 overflow-auto">
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-gray-900 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading...</p>
+                </div>
+              </div>
+            }>
+              {renderScreen()}
+            </Suspense>
+          </div>
         </div>
       </div>
     </RequireAuth>

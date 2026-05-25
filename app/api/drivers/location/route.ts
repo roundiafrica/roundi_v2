@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to save location' }, { status: 500 })
     }
 
-    // Update driver's last known position
+    // Update driver's last known position and mark them active/online
     const { error: updateError } = await supabase
       .from('drivers')
       .update({
@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
         last_known_lng: longitude,
         last_location_at: new Date().toISOString(),
         is_online: true,
+        status: 'active',
       })
       .eq('id', driver.id)
 

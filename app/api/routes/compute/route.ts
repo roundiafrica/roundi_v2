@@ -1,7 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createAuthenticatedClient } from '@/lib/supabase';
 
 export async function POST(req: NextRequest) {
   try {
+    // CRITICAL SECURITY: Require authentication to prevent API key abuse
+    const supabase = createAuthenticatedClient(req.headers.get('authorization'));
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Verify user has organization membership
+    const { data: membership, error: membershipError } = await supabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (membershipError || !membership) {
+      return NextResponse.json({ error: 'No organization found for user' }, { status: 403 });
+    }
+
     const { origin, destination, waypoints } = await req.json();
 
     if (!origin || !destination) {

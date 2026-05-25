@@ -31,6 +31,25 @@ export async function GET(request: NextRequest) {
     const maxDetourKm = parseFloat(request.nextUrl.searchParams.get('max_detour_km') || '3')
     const limit = parseInt(request.nextUrl.searchParams.get('limit') || '50')
 
+    // Collect delivery IDs already linked to active service requests.
+    // Rejected and cancelled requests are excluded so those deliveries can be reassigned.
+    const { data: activeRequests } = await supabase
+      .from('partner_allocation_requests')
+      .select('business_notes')
+      .eq('business_id', membership.organization_id)
+      .not('status', 'in', '("rejected","cancelled")')
+
+    const linkedDeliveryIds = new Set<number>()
+    for (const req of activeRequests ?? []) {
+      try {
+        const notes = typeof req.business_notes === 'string'
+          ? JSON.parse(req.business_notes)
+          : req.business_notes
+        const ids: number[] = notes?.linked_delivery_ids ?? []
+        ids.forEach((id) => linkedDeliveryIds.add(id))
+      } catch {}
+    }
+
     // Fetch all unassigned pending deliveries for this org
     const { data: deliveries, error: deliveriesError } = await supabase
       .from('deliveries')
@@ -50,8 +69,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ deliveries: [] })
     }
 
-    // Parse coordinates for all deliveries
-    const parsedDeliveries = deliveries.map((d) => {
+    // Parse coordinates for all deliveries, excluding any already linked to
+    // a non-rejected/non-cancelled service request
+    const parsedDeliveries = deliveries.filter((d) => !linkedDeliveryIds.has(d.id)).map((d) => {
       const [lat, lng] = parsePointCoordinates(d.coordinates)
       return {
         id: d.id,

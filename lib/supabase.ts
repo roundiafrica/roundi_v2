@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -8,13 +9,22 @@ if (!supabaseAnonKey || !supabaseUrl) {
   throw new Error("Missing Supabase environment variables");
 }
 
+// Uses createServerClient (from @supabase/ssr) so that the Bearer token is
+// correctly forwarded to PostgREST for RLS — plain createClient falls back
+// to the anon key as the Authorization header when there is no active session,
+// which makes auth.uid() NULL and causes RLS to reject every insert/update.
 export const createAuthenticatedClient = (authorization: string | null) => {
   if (!authorization) {
     throw new Error('Authorization header required')
   }
-  
+
   const token = authorization.replace('Bearer ', '')
-  return createClient(supabaseUrl, supabaseAnonKey, {
+  return createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      get: () => undefined,
+      set: () => {},
+      remove: () => {},
+    },
     global: {
       headers: {
         Authorization: `Bearer ${token}`
