@@ -197,7 +197,7 @@ export async function POST(request: NextRequest) {
       weight: body.weight || null,
       phone: body.phone,
       drop_time: body.drop_time,
-      status: body.status || 'pending',
+      status: 'pending',
       delivery_notes: body.delivery_notes || null,
       organization_id: membership.organization_id,
       created_by: profile.id,

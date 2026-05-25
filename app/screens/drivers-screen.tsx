@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { PhoneInput } from 'react-international-phone';
+import 'react-international-phone/style.css';
 import {
   Plus,
   Edit,
@@ -981,18 +983,14 @@ export default function DriversScreen() {
                       <FieldError error={formErrors.email} />
                     </div>
                     <div>
-                      <Label htmlFor="phone">Phone *</Label>
-                      <Input
-                        id="phone"
+                      <Label htmlFor="phone">Phone Number *</Label>
+                      <PhoneInput
                         placeholder="+254 7XX XXX XXX"
+                        defaultCountry="ke"
                         value={formData.phone}
-                        onChange={(e) =>
-                          handleInputChange("phone", e.target.value)
-                        }
-                        className={
-                          formErrors.phone
-                            ? "border-red-500 focus:border-red-500"
-                            : ""
+                        disabled={false}
+                        onChange={(value) =>
+                          handleInputChange("phone", value)
                         }
                         required
                       />
@@ -1358,12 +1356,12 @@ export default function DriversScreen() {
                   <FieldError error={formErrors.email} />
                 </div>
                 <div>
-                  <Label htmlFor="phone">Phone *</Label>
-                  <Input
-                    id="phone"
+                  <Label htmlFor="phone">Phone Number*</Label>
+                  <PhoneInput
                     placeholder="+254 7XX XXX XXX"
-                    value={formData.phone}
-                    onChange={(e) => handleInputChange("phone", e.target.value)}
+                    defaultCountry="ke"
+                    value={formData.phone}  
+                    onChange={(value) => handleInputChange("phone", value)}
                     required
                     className={
                       formErrors.phone

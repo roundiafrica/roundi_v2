@@ -16,6 +16,7 @@ import {
   HelpCircle,
   MapPin,
   X,
+  ClipboardList,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +43,7 @@ const SettingsScreen = lazy(() => import("../screens/settings-screen"));
 const AssignDriversScreen = lazy(() => import("../screens/assign-drivers-screen"));
 const RouteMapScreen = lazy(() => import("../screens/route-map-screen"));
 const CollectionPointsScreen = lazy(() => import("../screens/collection-points-screen"));
+const ServiceRequestsScreen = lazy(() => import("../screens/service-requests-screen"));
 
 export default function DashboardPage() {
   const [activeScreen, setActiveScreen] = useState("routes");
@@ -55,24 +57,32 @@ export default function DashboardPage() {
     deliveries: 0,
     drivers: 0,
     collectionPoints: 0,
+    serviceRequests: 0,
   });
   const { showTour, hasCompletedTour, startTour, closeTour, completeTour } =
     useFeatureTour();
   const sidebarStats = async () => {
-    // Fetch all stats in parallel for better performance
-    const [driverStats, deliveryStats, routeStats, collectionPointStats] = await Promise.all([
-      DriverService.getDriverStats(),
-      DeliveryService.getDeliveryStats(),
-      RouteService.getRouteStats(),
-      CollectionPointService.getCollectionPointStats(),
-    ]);
-    setSidebarCount((prev) => ({
-      ...prev,
+    const [driverStats, deliveryStats, routeStats, collectionPointStats] =
+      await Promise.all([
+        DriverService.getDriverStats(),
+        DeliveryService.getDeliveryStats(),
+        RouteService.getRouteStats(),
+        CollectionPointService.getCollectionPointStats(),
+      ]);
+
+    // Count service requests via the session-aware supabase client.
+    // RLS on partner_allocation_requests filters by the user's org automatically.
+    const { count: srCount } = await supabase
+      .from("partner_allocation_requests")
+      .select("*", { count: "exact", head: true });
+
+    setSidebarCount({
       routes: routeStats.total,
       deliveries: deliveryStats.total,
       drivers: driverStats.total,
       collectionPoints: collectionPointStats.total,
-    }));
+      serviceRequests: srCount ?? 0,
+    });
   };
   const sidebarItems = [
     { id: "routes", icon: Route, label: "Routes", count: sidebarCount.routes },
@@ -81,6 +91,12 @@ export default function DashboardPage() {
       icon: Package,
       label: "Deliveries",
       count: sidebarCount.deliveries,
+    },
+    {
+      id: "service-requests",
+      icon: ClipboardList,
+      label: "Service Requests",
+      count: sidebarCount.serviceRequests,
     },
     {
       id: "drivers",
@@ -153,6 +169,8 @@ export default function DashboardPage() {
         return <DriversScreen />;
       case "collection-points":
         return <CollectionPointsScreen />;
+      case "service-requests":
+        return <ServiceRequestsScreen />;
 
       // case "optimize":
       //   return <OptimizeScreen />;
