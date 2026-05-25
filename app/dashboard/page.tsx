@@ -24,19 +24,6 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import FeatureTour, { useFeatureTour } from "@/components/feature-tour";
-
-// Import all screen components
-import RoutesScreen from "../screens/routes-screen";
-import DeliveriesScreen from "../screens/deliveries-screen";
-import DriversScreen from "../screens/drivers-screen";
-import OptimizeScreen from "../screens/optimize-screen";
-import ScheduleScreen from "../screens/schedule-screen";
-import AnalyticsScreen from "../screens/analytics-screen";
-import SettingsScreen from "../screens/settings-screen";
-import AssignDriversScreen from "../screens/assign-drivers-screen";
-import RouteMapScreen from "../screens/route-map-screen";
-import CollectionPointsScreen from "../screens/collection-points-screen";
-import ServiceRequestsScreen from "../screens/service-requests-screen";
 import UserProfile from "../components/user-profile";
 import { RequireAuth } from "@/components/require-auth";
 import { DriverService } from "@/lib/services/drivers";
@@ -56,6 +43,7 @@ const SettingsScreen = lazy(() => import("../screens/settings-screen"));
 const AssignDriversScreen = lazy(() => import("../screens/assign-drivers-screen"));
 const RouteMapScreen = lazy(() => import("../screens/route-map-screen"));
 const CollectionPointsScreen = lazy(() => import("../screens/collection-points-screen"));
+const ServiceRequestsScreen = lazy(() => import("../screens/service-requests-screen"));
 
 export default function DashboardPage() {
   const [activeScreen, setActiveScreen] = useState("routes");
