@@ -17,6 +17,37 @@ export interface RouteWithDriver extends Route {
 }
 
 export class RouteService {
+  private static baseUrl = '/api/routes'
+
+  // Get auth token from Supabase session
+  private static async getAuthHeader() {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token ? `Bearer ${session.access_token}` : ''
+  }
+
+  // fetch wrapper with auth
+  private static async fetchWithAuth(url: string, options: RequestInit = {}) {
+    const authHeader = await this.getAuthHeader()
+
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader,
+        ...options.headers,
+      },
+    })
+
+    const result = await response.json()
+
+    if (!response.ok) {
+      console.error('API Error Response:', result)
+      throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    return result
+  }
+
   static async getAllRoutes(): Promise<RouteWithDriver[]> {
     // First get all routes
     const { data: routesData, error: routesError } = await supabase
@@ -248,34 +279,22 @@ export class RouteService {
   }
 
   static async getRouteStats() {
-    const { data, error } = await supabase
-      .from("routes")
-      .select("status, total_distance, estimated_duration, efficiency_score");
+    try {
+      // Use getAllRoutes to ensure proper authentication and org filtering
+      const routes = await this.getAllRoutes();
 
-    if (error) {
+      const stats = {
+        total: routes.length,
+        active: routes.filter((r) => r.status === "active").length,
+        completed: routes.filter((r) => r.status === "completed").length,
+        planned: routes.filter((r) => r.status === "planned").length,
+      };
+
+      return stats;
+    } catch (error) {
       console.error("Error fetching route stats:", error);
       throw error;
     }
-
-    const stats = {
-      total: data?.length || 0,
-      active: data?.filter((r) => r.status === "active").length || 0,
-      completed: data?.filter((r) => r.status === "completed").length || 0,
-      pending: data?.filter((r) => r.status === "pending").length || 0,
-      cancelled: data?.filter((r) => r.status === "cancelled").length || 0,
-      totalDistance:
-        data?.reduce((sum, r) => sum + (r.total_distance || 0), 0) || 0,
-      totalDuration:
-        data?.reduce((sum, r) => sum + (r.estimated_duration || 0), 0) || 0,
-      averageEfficiency: data?.length
-        ? Math.round(
-            data.reduce((sum, r) => sum + (r.efficiency_score || 0), 0) /
-              data.length
-          )
-        : 0,
-    };
-
-    return stats;
   }
 
   static async getRoutesByDriver(driverId: number): Promise<RouteWithDriver[]> {

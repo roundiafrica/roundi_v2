@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import {
   Search,
   Menu,
@@ -44,6 +44,18 @@ import { DeliveryService } from "@/lib/services/deliveries";
 import { RouteService } from "@/lib/services/routes";
 import { CollectionPointService } from "@/lib/services/collection-points";
 import { supabase } from "@/lib/supabase";
+
+// Lazy load screen components - only load when needed for better performance
+const RoutesScreen = lazy(() => import("../screens/routes-screen"));
+const DeliveriesScreen = lazy(() => import("../screens/deliveries-screen"));
+const DriversScreen = lazy(() => import("../screens/drivers-screen"));
+const OptimizeScreen = lazy(() => import("../screens/optimize-screen"));
+const ScheduleScreen = lazy(() => import("../screens/schedule-screen"));
+const AnalyticsScreen = lazy(() => import("../screens/analytics-screen"));
+const SettingsScreen = lazy(() => import("../screens/settings-screen"));
+const AssignDriversScreen = lazy(() => import("../screens/assign-drivers-screen"));
+const RouteMapScreen = lazy(() => import("../screens/route-map-screen"));
+const CollectionPointsScreen = lazy(() => import("../screens/collection-points-screen"));
 
 export default function DashboardPage() {
   const [activeScreen, setActiveScreen] = useState("routes");
@@ -444,7 +456,18 @@ export default function DashboardPage() {
 
           {/* Screen Content */}
 
-          <div className="flex-1 overflow-auto">{renderScreen()}</div>
+          <div className="flex-1 overflow-auto">
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-gray-900 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading...</p>
+                </div>
+              </div>
+            }>
+              {renderScreen()}
+            </Suspense>
+          </div>
         </div>
       </div>
     </RequireAuth>

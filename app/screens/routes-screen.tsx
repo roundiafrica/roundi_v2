@@ -49,7 +49,7 @@ import { useRoute } from "@/hooks/use-route";
 import { useDriverLocations } from "@/hooks/use-driver-locations";
 
 // Transform Supabase route data to UI format
-const transformRouteForUI = async (route: RouteWithDriver) => {
+const transformRouteForUI = (route: RouteWithDriver, allDeliveries: any[]) => {
   const formatDuration = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
@@ -72,15 +72,10 @@ const transformRouteForUI = async (route: RouteWithDriver) => {
     return "Just now";
   };
 
-  // Get delivery count for this route
-  let deliveryCount = 0;
-  try {
-    const deliveries = await DeliveryService.getDeliveriesByRoute(route.id);
-    deliveryCount = deliveries.length;
-  } catch (error) {
-    console.error("Error getting deliveries for route:", route.id, error);
-    // Don't throw, just use 0 as default
-  }
+  // Get delivery count for this route by filtering the allDeliveries array
+  const deliveryCount = allDeliveries.filter(
+    (delivery: any) => delivery.route_id === route.id
+  ).length;
 
   return {
     id: route.id,
@@ -161,18 +156,21 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
       setIsLoading(true);
       setError(null);
 
-      // Get all routes with driver information
-      const routesData = await RouteService.getAllRoutes();
+      // Fetch routes and deliveries in parallel for better performance
+      const [routesData, allDeliveries] = await Promise.all([
+        RouteService.getAllRoutes(),
+        DeliveryService.getAllDeliveries()
+      ]);
 
       if (routesData.length === 0) {
         setRoutes([]);
         return;
       }
 
-      // Transform routes for UI display with better error handling
-      const transformPromises = routesData.map(async (route) => {
+      // Transform routes for UI display - pass allDeliveries to avoid N API calls
+      const transformedRoutes = routesData.map((route) => {
         try {
-          return await transformRouteForUI(route);
+          return transformRouteForUI(route, allDeliveries);
         } catch (error) {
           console.error(`Error transforming route ${route.id}:`, error);
           // Return basic route data if transformation fails
@@ -197,7 +195,6 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
         }
       });
 
-      const transformedRoutes = await Promise.all(transformPromises);
       setRoutes(transformedRoutes);
     } catch (err) {
       console.error("Error loading routes:", err);
@@ -378,14 +375,19 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
 
       // Validate deliveries based on mode
       let deliveryCount = 0;
+      let validDeliveries: any[] = [];
+
       if (deliveryMode === "new") {
-        const validDeliveries = deliveries.filter(
+        // Filter for valid deliveries - must match API required fields
+        validDeliveries = deliveries.filter(
           (delivery) =>
             delivery.customer_name.trim() &&
             delivery.location.trim() &&
             delivery.latitude &&
             delivery.longitude &&
-            delivery.phone.trim()
+            delivery.phone.trim() &&
+            delivery.item.trim() &&
+            delivery.drop_time.trim()
         );
         console.log(
           "Valid deliveries:",
@@ -403,7 +405,7 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
           title: "Error",
           description:
             deliveryMode === "new"
-              ? "Please add at least one delivery with customer name and location."
+              ? "Please complete all required fields (customer name, location, phone, item, and drop time) for at least one delivery."
               : "Please select at least one existing delivery.",
           variant: "destructive",
         });
@@ -428,9 +430,9 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
       const createdRoute = await RouteService.createRoute(routeData);
 
       if (deliveryMode === "new") {
-        // Create new deliveries for this route
-        for (let i = 0; i < deliveries.length; i++) {
-          const delivery = deliveries[i];
+        // Create new deliveries for this route - ONLY process valid deliveries
+        for (let i = 0; i < validDeliveries.length; i++) {
+          const delivery = validDeliveries[i];
           const latitude = parseFloat(delivery.latitude);
           const longitude = parseFloat(delivery.longitude);
           const deliveryData = {
@@ -439,7 +441,7 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
             coordinates: [longitude, latitude] as [number, number],
             item: delivery.item,
             phone: delivery.phone,
-            drop_time: delivery.drop_time ,
+            drop_time: delivery.drop_time,
             estimated_value: delivery.estimated_value || null,
             weight: delivery.weight || null,
             status: "pending",
@@ -450,7 +452,7 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
             const createdDelivery = await DeliveryService.createDelivery(
               deliveryData
             );
-            
+
 
             if (createdRoute?.id && createdDelivery?.id) {
               await supabase

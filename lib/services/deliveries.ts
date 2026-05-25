@@ -192,7 +192,7 @@ export class DeliveryService {
   static async getDeliveryStats() {
     try {
       const deliveries = await this.getAllDeliveries();
-      
+
       const stats = {
         total: deliveries.length,
         pending: deliveries.filter(d => d.status === 'pending').length,
@@ -204,7 +204,7 @@ export class DeliveryService {
           return sum + value;
         }, 0),
       };
-      
+
       return stats;
     } catch (error) {
       console.error('Error getting delivery stats:', error);

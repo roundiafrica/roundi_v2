@@ -78,10 +78,29 @@ export async function GET(
     const supabase = createAuthenticatedClient(request.headers.get('authorization'))
     const resolvedParams = await params
 
+    // Verify user is authenticated
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Get user's organization
+    const { data: membership, error: membershipError } = await supabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (membershipError || !membership) {
+      return NextResponse.json({ error: 'No organization found for user' }, { status: 403 })
+    }
+
+    // Query with organization_id filter - CRITICAL SECURITY
     const { data, error } = await supabase
       .from("collection_points")
       .select("*")
       .eq("id", resolvedParams.id)
+      .eq("organization_id", membership.organization_id)
       .single()
 
     if (error) {
@@ -94,11 +113,11 @@ export async function GET(
     return NextResponse.json({ data })
   } catch (error) {
     console.error("GET /api/collection-points/[id] error:", error)
-    
+
     if (error instanceof Error && error.message === 'Authorization header required') {
       return NextResponse.json({ error: error.message }, { status: 401 })
     }
-    
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to fetch collection point" },
       { status: 500 }
@@ -129,6 +148,17 @@ export async function PATCH(
     if (profileError || !profile) {
       console.error('Profile query error:', profileError)
       throw new Error('Profile not found')
+    }
+
+    // Get user's organization - CRITICAL SECURITY
+    const { data: membership, error: membershipError } = await supabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (membershipError || !membership) {
+      return NextResponse.json({ error: 'No organization found for user' }, { status: 403 })
     }
 
     // Parse and validate request body
@@ -162,10 +192,12 @@ export async function PATCH(
       }
     });
 
+    // Update with organization_id filter - CRITICAL SECURITY
     const { data, error } = await supabase
       .from("collection_points")
       .update(updateData)
       .eq("id", resolvedParams.id)
+      .eq("organization_id", membership.organization_id)
       .select()
       .single()
 
@@ -179,7 +211,7 @@ export async function PATCH(
     return NextResponse.json({ data })
   } catch (error) {
     console.error("PATCH /api/collection-points/[id] error:", error)
-    
+
     if (error instanceof Error) {
       if (error.message === 'Authorization header required') {
         return NextResponse.json({ error: error.message }, { status: 401 })
@@ -191,7 +223,7 @@ export async function PATCH(
         return NextResponse.json({ error: error.message }, { status: 404 })
       }
     }
-    
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to update collection point" },
       { status: 500 }
@@ -208,21 +240,40 @@ export async function DELETE(
     const supabase = createAuthenticatedClient(request.headers.get('authorization'))
     const resolvedParams = await params
 
+    // Verify user is authenticated
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Get user's organization - CRITICAL SECURITY
+    const { data: membership, error: membershipError } = await supabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (membershipError || !membership) {
+      return NextResponse.json({ error: 'No organization found for user' }, { status: 403 })
+    }
+
+    // Delete with organization_id filter - CRITICAL SECURITY
     const { error } = await supabase
       .from("collection_points")
       .delete()
       .eq("id", resolvedParams.id)
+      .eq("organization_id", membership.organization_id)
 
     if (error) throw error
 
     return NextResponse.json({ message: "Collection point deleted successfully" })
   } catch (error) {
     console.error("DELETE /api/collection-points/[id] error:", error)
-    
+
     if (error instanceof Error && error.message === 'Authorization header required') {
       return NextResponse.json({ error: error.message }, { status: 401 })
     }
-    
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to delete collection point" },
       { status: 500 }
